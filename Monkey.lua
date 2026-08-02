@@ -1,4 +1,4 @@
--- Monkey Escape Auto Win Script with Dropdown & Circle Toggle
+-- Monkey Escape Auto Win Script with Updated Coordinates
 -- Theme: Dark Neon Purple with Arabic UI
 
 local Players = game:GetService("Players")
@@ -7,15 +7,15 @@ local TweenService = game:GetService("TweenService")
 
 local LocalPlayer = Players.LocalPlayer
 
--- 1. جدول الإحداثيات لكل مرحلة بالتفصيل
+-- 1. جدول الإحداثيات المعدل بالكامل بناءً على طلبك
 local StageWaypoints = {
-    [0] = { CFrame.new(439, 27, 222) }, -- البداية
-    [1] = { CFrame.new(-683, 24, -222), CFrame.new(-683, 24, 255) },
-    [2] = { CFrame.new(-934, 24, -222), CFrame.new(-934, 24, 255) },
-    [3] = { CFrame.new(-1213, 24, -222), CFrame.new(-1213, 24, 255) },
-    [4] = { CFrame.new(-1213, 24, -222), CFrame.new(1213, 66, 222), CFrame.new(-1567, 66, -222), CFrame.new(-1567, 24, 255) },
-    [5] = { CFrame.new(-1567, 150, -222), CFrame.new(-2183, 150, -222), CFrame.new(-2183, 119, 255) },
-    [6] = { CFrame.new(-2183, 220, -222), CFrame.new(-3046, 220, -222), CFrame.new(-3046, 119, 255) }
+    [0] = { CFrame.new(-439, 27, -222) }, -- البداية
+    [1] = { CFrame.new(-683, 24, -222), CFrame.new(-683, 24, -255) },
+    [2] = { CFrame.new(-934, 24, -222), CFrame.new(-934, 24, -255) },
+    [3] = { CFrame.new(-1213, 24, -222), CFrame.new(-1213, 24, -255) },
+    [4] = { CFrame.new(-1213, 24, -222), CFrame.new(-1213, 66, -222), CFrame.new(-1567, 66, -222), CFrame.new(-1567, 24, -255) },
+    [5] = { CFrame.new(-1567, 150, -222), CFrame.new(-2183, 150, -222), CFrame.new(-2183, 119, -255) },
+    [6] = { CFrame.new(-2183, 220, -222), CFrame.new(-3046, 220, -222), CFrame.new(-3046, 119, -255) }
 }
 
 local SelectedStage = 1 -- المرحلة المحددة افتراضياً
