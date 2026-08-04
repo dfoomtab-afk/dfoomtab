@@ -1,83 +1,83 @@
 -- Delta Executor Script
 -- Map: قوة المعول (Pickaxe Power)
--- Theme: Dark Red & Black
+-- Feature: Smooth Walking to Coordinates with Adjustable Speed
 
+local TweenService = game:GetService("TweenService")
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
    Name = "قوة المعول 🔴",
    LoadingTitle = "جاري تحميل السكربت...",
    LoadingSubtitle = "By Fumia Design",
-   ConfigurationSaving = {
-      Enabled = false
-   },
-   Discord = {
-      Enabled = false
-   },
+   ConfigurationSaving = { Enabled = false },
+   Discord = { Enabled = false },
    KeySystem = false,
-   Theme = "DarkRed" -- ألوان حمراء وسوداء فخمة
+   Theme = "DarkRed"
 })
 
 -- Variables / المتغيرات
-local AutoFarm = false
-local TargetLocation = CFrame.new(1764, 5, 848)
+local AutoWalk = false
+local WalkSpeed = 30 -- السرعة الافتراضية للمشي التلقائي
+local TargetLocation = Vector3.new(1764, 5, 848)
+local CurrentTween = nil
 
 -- Main Tab / التبويب الرئيسي
 local MainTab = Window:CreateTab("الرئيسية 🎮", 4483362458)
 
-MainTab:CreateSection("خيارات التنقيب والتجميع")
+MainTab:CreateSection("تحكم المشي التلقائي")
 
--- 1. زر التجميع التلقائي (تشغيل / إيقاف)
-local FarmToggle = MainTab:CreateToggle({
-   Name = "تجميع تلقائي ⛏️",
+-- 1. زر المشي التلقائي (تشغيل / إيقاف)
+local WalkToggle = MainTab:CreateToggle({
+   Name = "مشي تلقائي للإحداثيات 🚶‍♂️",
    CurrentValue = false,
-   Flag = "PickaxeAutoFarm",
+   Flag = "AutoWalkToggle",
    Callback = function(Value)
-      AutoFarm = Value
-      if AutoFarm then
-         Rayfield:Notify({
-            Title = "التجميع التلقائي",
-            Content = "تم تفعيل الانتقال المستمر لمكان المعول!",
-            Duration = 2.5,
-            Image = 4483362458,
-         })
+      AutoWalk = Value
+      if not AutoWalk and CurrentTween then
+         CurrentTween:Cancel() -- إيقاف المشي فوراً عند تعطيل الزر
       end
    end,
 })
 
--- Loop Logic: نقل مستمر ومكرر كل 1.5 ثانية إلى الاحداثيات المحددة
+-- 2. شريط التحكم بسرعه المشي (Slider)
+MainTab:CreateSlider({
+   Name = "سرعة المشي التلقائي ⚡",
+   Range = {10, 150},
+   Increment = 5,
+   Suffix = " Speed",
+   CurrentValue = 30,
+   Flag = "WalkSpeedSlider",
+   Callback = function(Value)
+      WalkSpeed = Value
+   end,
+})
+
+-- Loop Logic: حساب المسافة والمشي السلس تجاه الهدف وإعادة التكرار
 task.spawn(function()
-   while task.wait(1.5) do
-      if AutoFarm then
+   while task.wait(0.5) do
+      if AutoWalk then
          pcall(function()
             local player = game.Players.LocalPlayer
             if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-               -- ينقلك مباشرة وإجبارياً إلى الإحداثيات الجديدة
-               player.Character.HumanoidRootPart.CFrame = TargetLocation
+               local root = player.Character.HumanoidRootPart
+               local distance = (TargetLocation - root.Position).Magnitude
+               
+               -- إذا كان اللاعب بعيداً عن الهدف، يتم البدء بالمشي
+               if distance > 3 then
+                  local travelTime = distance / WalkSpeed
+                  local tweenInfo = TweenInfo.new(travelTime, Enum.EasingStyle.Linear)
+                  
+                  CurrentTween = TweenService:Create(root, tweenInfo, {CFrame = CFrame.new(TargetLocation)})
+                  CurrentTween:Play()
+                  CurrentTween.Completed:Wait() -- الانتظار حتى يصل للمكان
+                  
+                  task.wait(0.5) -- استراحة بسيطة بعد الوصول قبل التكرار عند إعادة التعيين/الربح
+               end
             end
          end)
       end
    end
 end)
-
--- 2. زر النقل الفوري (Teleport Button)
-MainTab:CreateButton({
-   Name = "نقل سريع للمكان",
-   Callback = function()
-      pcall(function()
-         local player = game.Players.LocalPlayer
-         if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-            player.Character.HumanoidRootPart.CFrame = TargetLocation
-         end
-      end)
-      Rayfield:Notify({
-         Title = "نقل سريع",
-         Content = "تم الانتقال إلى الاحداثيات بنجاح!",
-         Duration = 2,
-         Image = 4483362458,
-      })
-   end,
-})
 
 MainTab:CreateSection("إدارة الواجهة")
 
@@ -93,6 +93,7 @@ MainTab:CreateButton({
 MainTab:CreateButton({
    Name = "إغلاق السكربت ❌",
    Callback = function()
+      if CurrentTween then CurrentTween:Cancel() end
       Rayfield:Destroy()
    end,
 })
