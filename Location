@@ -1,0 +1,37 @@
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
+local Mouse = LocalPlayer:GetMouse()
+
+-- إشعار عند تشغيل السكربت
+game:GetService("StarterGui"):SetCore("SendNotification", {
+    Title = "Click to Vector3",
+    Text = "اضغط في أي مكان باللعبة لتحديد الإحداثيات",
+    Duration = 3
+})
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    -- التأكد من أن الضغط كان على شاشة اللعبة وليس القوائم
+    if not gameProcessed and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
+        if Mouse.Hit then
+            local pos = Mouse.Hit.Position
+            -- تنسيق الإحداثيات بتقريب الأرقام
+            local formattedPos = string.format("Vector3.new(%.2f, %.2f, %.2f)", pos.X, pos.Y, pos.Z)
+            
+            -- طباعة الإحداثيات في الـ Developer Console
+            print("Target Position: " .. formattedPos)
+            
+            -- نسخ الإحداثيات للحافظة لتسهيل اللصق في السكربتات
+            if setclipboard then
+                setclipboard(formattedPos)
+            end
+            
+            -- إشعار سريع بالإحداثيات التي تم تحديدها
+            game:GetService("StarterGui"):SetCore("SendNotification", {
+                Title = "تم تحديد الموقع!",
+                Text = formattedPos,
+                Duration = 2
+            })
+        end
+    end
+end)
