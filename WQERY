@@ -1,0 +1,182 @@
+-- Delta Executor Script
+-- Feature: High Speed Walk + Noclip + Custom Target Coordinates Input Settings
+
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local Window = Rayfield:CreateWindow({
+   Name = "سكربت المشي والإعدادات 🔴",
+   LoadingTitle = "جاري تحميل السكربت...",
+   LoadingSubtitle = "By Fumia Design",
+   ConfigurationSaving = { Enabled = false },
+   Discord = { Enabled = false },
+   KeySystem = false,
+   Theme = "DarkRed"
+})
+
+-- Variables / المتغيرات
+local AutoWalk = false
+local NoclipEnabled = false
+local WalkSpeed = 100
+local TargetLocation = Vector3.new(283, 41, -13872) -- الإحداثيات الافتراضية
+local CurrentTween = nil
+local NoclipConnection = nil
+
+-- TABS / التبويبات
+local MainTab = Window:CreateTab("الرئيسية 🎮", 4483362458)
+local SettingsTab = Window:CreateTab("الإعدادات ⚙️", 4483362458)
+
+-- ==================== TAB 1: الرئيسية ====================
+MainTab:CreateSection("تحكم المشي والسرعة")
+
+-- 1. زر المشي التلقائي
+MainTab:CreateToggle({
+   Name = "مشي تلقائي مستمر 🚶‍♂️",
+   CurrentValue = false,
+   Flag = "AutoWalkRepeatToggleNoclip",
+   Callback = function(Value)
+      AutoWalk = Value
+      if not AutoWalk and CurrentTween then
+         CurrentTween:Cancel()
+      end
+   end,
+})
+
+-- 2. زر اختراق الجدران (Noclip Toggle)
+MainTab:CreateToggle({
+   Name = "اختراق الجدران (Noclip) 👻",
+   CurrentValue = false,
+   Flag = "NoclipToggleFlag",
+   Callback = function(Value)
+      NoclipEnabled = Value
+      if NoclipEnabled then
+         NoclipConnection = RunService.Stepped:Connect(function()
+            if NoclipEnabled then
+               local player = game.Players.LocalPlayer
+               if player and player.Character then
+                  for _, part in pairs(player.Character:GetDescendants()) do
+                     if part:IsA("BasePart") and part.CanCollide == true then
+                        part.CanCollide = false
+                     end
+                  end
+               end
+            end
+         end)
+      else
+         if NoclipConnection then
+            NoclipConnection:Disconnect()
+            NoclipConnection = nil
+         end
+      end
+   end,
+})
+
+-- 3. شريط التحكم بالسرعة حتى 600
+MainTab:CreateSlider({
+   Name = "سرعة المشي التلقائي ⚡",
+   Range = {10, 600},
+   Increment = 10,
+   Suffix = " Speed",
+   CurrentValue = 100,
+   Flag = "WalkSpeedSlider600Noclip",
+   Callback = function(Value)
+      WalkSpeed = Value
+   end,
+})
+
+MainTab:CreateSection("إدارة الواجهة")
+
+-- 4. زر تصغير السكربت
+MainTab:CreateButton({
+   Name = "تصغير السكربت 🔲",
+   Callback = function()
+      Rayfield:Minimize()
+   end,
+})
+
+-- 5. زر إغلاق السكربت
+MainTab:CreateButton({
+   Name = "إغلاق السكربت ❌",
+   Callback = function()
+      NoclipEnabled = false
+      if NoclipConnection then NoclipConnection:Disconnect() end
+      if CurrentTween then CurrentTween:Cancel() end
+      Rayfield:Destroy()
+   end,
+})
+
+-- ==================== TAB 2: الإعدادات ====================
+SettingsTab:CreateSection("تغيير إحداثيات الهدف")
+
+-- خانة إدخال الإحداثيات
+local NewCoordsInput = "283, 41, -13872"
+
+SettingsTab:CreateInput({
+   Name = "الإحداثيات الجديدة (X, Y, Z)",
+   PlaceholderText = "مثال: 283, 41, -13872",
+   RemoveTextOnFocus = false,
+   Callback = function(Text)
+      NewCoordsInput = Text
+   end,
+})
+
+-- زر تطبيق الإحداثيات
+SettingsTab:CreateButton({
+   Name = "تطبيق وحفظ الإحداثيات 📍",
+   Callback = function()
+      local coords = {}
+      for num in string.gmatch(NewCoordsInput, "[-?%d%.]+") do
+         table.insert(coords, tonumber(num))
+      end
+      
+      if #coords >= 3 then
+         TargetLocation = Vector3.new(coords[1], coords[2], coords[3])
+         
+         -- إلغاء المشي الحالي للبدء بالهدف الجديد فوراً
+         if CurrentTween then
+            CurrentTween:Cancel()
+         end
+         
+         Rayfield:Notify({
+            Title = "تم التحديث!",
+            Content = "تم تغيير الهدف إلى: " .. tostring(TargetLocation),
+            Duration = 3,
+            Image = 4483362458,
+         })
+      else
+         Rayfield:Notify({
+            Title = "خطأ في الإدخال!",
+            Content = "يرجى إدخال 3 أرقام للإحداثيات تفصل بينها فاصلة.",
+            Duration = 3,
+            Image = 4483362458,
+         })
+      end
+   end,
+})
+
+-- Loop Logic
+task.spawn(function()
+   while task.wait(0.3) do
+      if AutoWalk then
+         pcall(function()
+            local player = game.Players.LocalPlayer
+            if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+               local root = player.Character.HumanoidRootPart
+               local distance = (TargetLocation - root.Position).Magnitude
+               
+               if distance > 4 then
+                  local travelTime = distance / WalkSpeed
+                  local tweenInfo = TweenInfo.new(travelTime, Enum.EasingStyle.Linear)
+                  
+                  CurrentTween = TweenService:Create(root, tweenInfo, {CFrame = CFrame.new(TargetLocation)})
+                  CurrentTween:Play()
+                  CurrentTween.Completed:Wait()
+                  
+                  task.wait(0.3)
+               end
+            end
+         end)
+      end
+   end
+end)
