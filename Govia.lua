@@ -1,21 +1,22 @@
--- Delta Speed Teleport & Fly Script
+-- Delta Continuous Speed Teleport Script
 local CoreGui = game:GetService("CoreGui")
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local LocalPlayer = Players.LocalPlayer
 
-if CoreGui:FindFirstChild("SpeedTeleportUI") then
-    CoreGui.SpeedTeleportUI:Destroy()
+if CoreGui:FindFirstChild("ContinuousSpeedUI") then
+    CoreGui.ContinuousSpeedUI:Destroy()
 end
 
 local targetPosition = Vector3.new(3200, 3275, -846)
-local currentSpeed = 250 -- السرعة الافتراضية
-local isMoving = false
+local currentSpeed = 250
+local isLooping = false
 local currentTween = nil
+local loopThread = nil
 
 -- الواجهة الرئيسية
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "SpeedTeleportUI"
+ScreenGui.Name = "ContinuousSpeedUI"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.DisplayOrder = 999
 ScreenGui.Parent = CoreGui
@@ -37,7 +38,7 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 30)
 Title.Position = UDim2.new(0, 0, 0, 5)
 Title.BackgroundTransparency = 1
-Title.Text = "التنقل السريع المخصص"
+Title.Text = "التنقل المستمر بالسريعة"
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.TextSize = 13
 Title.Font = Enum.Font.SourceSansBold
@@ -48,7 +49,7 @@ local ActionBtn = Instance.new("TextButton")
 ActionBtn.Size = UDim2.new(1, -20, 0, 35)
 ActionBtn.Position = UDim2.new(0, 10, 0, 40)
 ActionBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
-ActionBtn.Text = "بدء التنقل السريع: OFF"
+ActionBtn.Text = "التنقل المستمر: OFF"
 ActionBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 ActionBtn.TextSize = 12
 ActionBtn.Font = Enum.Font.SourceSansBold
@@ -63,7 +64,7 @@ local SpeedLabel = Instance.new("TextLabel")
 SpeedLabel.Size = UDim2.new(1, -20, 0, 20)
 SpeedLabel.Position = UDim2.new(0, 10, 0, 85)
 SpeedLabel.BackgroundTransparency = 1
-SpeedLabel.Text = "السرعة الحالية (حد أقصى 600):"
+SpeedLabel.Text = "حدد السرعة (أقصى حد 600):"
 SpeedLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
 SpeedLabel.TextSize = 11
 SpeedLabel.Font = Enum.Font.SourceSans
@@ -83,53 +84,52 @@ local InputCorner = Instance.new("UICorner")
 InputCorner.CornerRadius = UDim.new(0, 6)
 InputCorner.Parent = SpeedInput
 
--- دالة الحركة بالسرعة المحددة
-local function startSpeedMovement()
-    local char = LocalPlayer.Character
-    if not char then return end
+-- حلقة الحركة المستمرة
+local function startContinuousMovement()
+    if loopThread then task.cancel(loopThread) end
     
-    local hrp = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
-    if not hrp then return end
-
-    -- حساب المسافة والوقت المطلوب بناءً على السرعة
-    local distance = (targetPosition - hrp.Position).Magnitude
-    local duration = distance / currentSpeed
-
-    local tweenInfo = TweenInfo.new(
-        duration,
-        Enum.EasingStyle.Linear,
-        Enum.EasingDirection.Out
-    )
-
-    currentTween = TweenService:Create(hrp, tweenInfo, {CFrame = CFrame.new(targetPosition)})
-    currentTween:Play()
-
-    currentTween.Completed:Connect(function()
-        if isMoving then
-            isMoving = false
-            ActionBtn.Text = "بدء التنقل السريع: OFF"
-            ActionBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
+    loopThread = task.spawn(function()
+        while isLooping do
+            local char = LocalPlayer.Character
+            if char then
+                local hrp = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
+                if hrp then
+                    local distance = (targetPosition - hrp.Position).Magnitude
+                    
+                    -- إذا ابتعدت الشخصية عن الهدف، يتحرك إليها بالسرعة المحددة
+                    if distance > 3 then
+                        local duration = distance / currentSpeed
+                        local tweenInfo = TweenInfo.new(duration, Enum.EasingStyle.Linear)
+                        
+                        currentTween = TweenService:Create(hrp, tweenInfo, {CFrame = CFrame.new(targetPosition)})
+                        currentTween:Play()
+                        
+                        -- الانتظار حتى الوصول أو إعادة التكرار
+                        task.wait(duration)
+                    end
+                end
+            end
+            task.wait(0.1)
         end
     end)
 end
 
--- التحكم بزر التشغيل
+-- تشغيل/إيقاف الحركة
 ActionBtn.MouseButton1Click:Connect(function()
-    isMoving = not isMoving
-    if isMoving then
-        ActionBtn.Text = "التنقل جاري... (إيقاف)"
+    isLooping = not isLooping
+    if isLooping then
+        ActionBtn.Text = "التنقل المستمر: ON"
         ActionBtn.BackgroundColor3 = Color3.fromRGB(40, 180, 80)
-        startSpeedMovement()
+        startContinuousMovement()
     else
-        ActionBtn.Text = "بدء التنقل السريع: OFF"
+        ActionBtn.Text = "التنقل المستمر: OFF"
         ActionBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
-        if currentTween then
-            currentTween:Cancel()
-        end
+        if currentTween then currentTween:Cancel() end
+        if loopThread then task.cancel(loopThread) end
     end
 end)
 
--- تحديث وتحديد السرعة (حد أقصى 600)
+-- تحديث قيمة السرعة (حد أقصى 600)
 SpeedInput.FocusLost:Connect(function()
     local val = tonumber(SpeedInput.Text)
     if val then
@@ -139,5 +139,13 @@ SpeedInput.FocusLost:Connect(function()
         SpeedInput.Text = tostring(val)
     else
         SpeedInput.Text = tostring(currentSpeed)
+    end
+end)
+
+-- إعادة التشغيل التلقائي عند الترسيبن (Respawn)
+LocalPlayer.CharacterAdded:Connect(function()
+    if isLooping then
+        task.wait(0.5)
+        startContinuousMovement()
     end
 end)
