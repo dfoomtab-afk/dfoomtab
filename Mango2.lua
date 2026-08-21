@@ -1,4 +1,4 @@
--- Delta Multi-Tool V5 (Fly Speed + Minimize/Close)
+-- Delta Multi-Tool V6 (Fly Speed up to 1500 + Minimize/Close)
 local CoreGui = game:GetService("CoreGui")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -78,7 +78,7 @@ local MinCorner = Instance.new("UICorner")
 MinCorner.CornerRadius = UDim.new(0, 4)
 MinCorner.Parent = MinBtn
 
--- حاوية العناصر الداخليـة (Content Container)
+-- حاوية العناصر الداخلية (Content Container)
 local ContentFrame = Instance.new("Frame")
 ContentFrame.Size = UDim2.new(1, 0, 1, -35)
 ContentFrame.Position = UDim2.new(0, 0, 0, 35)
@@ -152,7 +152,7 @@ NoclipCorner.CornerRadius = UDim.new(0, 5)
 NoclipCorner.Parent = NoclipBtn
 
 ---------------------------------------------------------
--- 4. سرعة المشي وسرعة الطيران
+-- 4. سرعة المشي وسرعة الطيران (حتى 1500)
 ---------------------------------------------------------
 local SpeedInput = Instance.new("TextBox")
 SpeedInput.Size = UDim2.new(0.5, -15, 0, 32)
@@ -173,7 +173,7 @@ local FlySpeedInput = Instance.new("TextBox")
 FlySpeedInput.Size = UDim2.new(0.5, -15, 0, 32)
 FlySpeedInput.Position = UDim2.new(0.5, 5, 0, 173)
 FlySpeedInput.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-FlySpeedInput.PlaceholderText = "سرعة الطيران (أقصى 600)"
+FlySpeedInput.PlaceholderText = "طيران (أقصى 1500)"
 FlySpeedInput.Text = "100"
 FlySpeedInput.TextColor3 = Color3.fromRGB(255, 255, 255)
 FlySpeedInput.TextSize = 11
@@ -279,7 +279,7 @@ TeleportBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- 4. تعديل سرعة المشي وسرعة الطيران
+-- 4. تعديل سرعة المشي وسرعة الطيران (حتى 1500)
 local currentFlySpeed = 100
 
 SpeedInput.FocusLost:Connect(function()
@@ -295,7 +295,7 @@ end)
 FlySpeedInput.FocusLost:Connect(function()
     local val = tonumber(FlySpeedInput.Text)
     if val then
-        if val > 600 then val = 600 end
+        if val > 1500 then val = 1500 end
         if val < 10 then val = 10 end
         currentFlySpeed = val
         FlySpeedInput.Text = tostring(val)
@@ -320,7 +320,6 @@ UserInputService.JumpRequest:Connect(function()
             local hum = char:FindFirstChild("Humanoid")
             if hrp and hum then
                 hum:ChangeState(Enum.HumanoidStateType.Jumping)
-                -- تطبيق القوة بالسرعة المحددة عند الطيران
                 hrp.Velocity = Vector3.new(hrp.Velocity.X, currentFlySpeed, hrp.Velocity.Z)
             end
         end
