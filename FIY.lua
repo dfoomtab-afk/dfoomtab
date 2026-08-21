@@ -1,4 +1,4 @@
--- Roblox Fly Script for Delta Executor
+-- Roblox Hold-Jump Fly Script with Minimize Button (Delta Mobile)
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -7,25 +7,25 @@ local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
 -- Variables
-local flying = false
-local flySpeed = 50 -- السرعة الافتراضية
-local bodyGyro, bodyVelocity
+local flySpeed = 100 -- السرعة الافتراضية
 local guiVisible = true
+local isMinimized = false
 
 -- Create ScreenGui
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "DeltaFlyGui"
+screenGui.Name = "JumpFlyGui"
 screenGui.ResetOnSpawn = false
 screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
 -- Main Frame
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 220, 0, 190)
-mainFrame.Position = UDim2.new(0.5, -110, 0.4, -95)
+mainFrame.Size = UDim2.new(0, 230, 0, 150)
+mainFrame.Position = UDim2.new(0.5, -115, 0.4, -75)
 mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 mainFrame.BorderSizePixel = 0
 mainFrame.Active = true
 mainFrame.Draggable = true
+mainFrame.ClipsDescendants = true
 mainFrame.Parent = screenGui
 
 local corner = Instance.new("UICorner")
@@ -34,168 +34,138 @@ corner.Parent = mainFrame
 
 -- Title
 local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, -30, 0, 30)
-title.Position = UDim2.new(0, 10, 0, 5)
-title.Text = "Fly Menu | Delta"
+title.Size = UDim2.new(1, -60, 0, 30)
+title.Position = UDim2.new(0, 10, 0, 3)
+title.Text = "Jump Fly | Delta"
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
-title.TextSize = 16
+title.TextSize = 15
 title.Font = Enum.Font.SourceSansBold
 title.BackgroundTransparency = 1
 title.TextXAlignment = Enum.TextXAlignment.Left
 title.Parent = mainFrame
 
+-- Minimize Button (-)
+local minimizeBtn = Instance.new("TextButton")
+minimizeBtn.Size = UDim2.new(0, 24, 0, 24)
+minimizeBtn.Position = UDim2.new(1, -54, 0, 5)
+minimizeBtn.Text = "-"
+minimizeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+minimizeBtn.TextSize = 18
+minimizeBtn.Font = Enum.Font.SourceSansBold
+minimizeBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+minimizeBtn.Parent = mainFrame
+
+local minCorner = Instance.new("UICorner")
+minCorner.CornerRadius = UDim.new(0, 4)
+minCorner.Parent = minimizeBtn
+
 -- Close Button (X)
 local closeBtn = Instance.new("TextButton")
-closeBtn.Size = UDim2.new(0, 25, 0, 25)
-closeBtn.Position = UDim2.new(1, -28, 0, 5)
+closeBtn.Size = UDim2.new(0, 24, 0, 24)
+closeBtn.Position = UDim2.new(1, -27, 0, 5)
 closeBtn.Text = "X"
 closeBtn.TextColor3 = Color3.fromRGB(255, 80, 80)
 closeBtn.TextSize = 14
 closeBtn.Font = Enum.Font.SourceSansBold
-closeBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+closeBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
 closeBtn.Parent = mainFrame
 
 local closeCorner = Instance.new("UICorner")
 closeCorner.CornerRadius = UDim.new(0, 4)
 closeCorner.Parent = closeBtn
 
--- Toggle Fly Button
-local flyBtn = Instance.new("TextButton")
-flyBtn.Size = UDim2.new(1, -20, 0, 35)
-flyBtn.Position = UDim2.new(0, 10, 0, 40)
-flyBtn.Text = "تشغيل الطيران"
-flyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-flyBtn.BackgroundColor3 = Color3.fromRGB(45, 125, 245)
-flyBtn.Font = Enum.Font.SourceSansBold
-flyBtn.TextSize = 14
-flyBtn.Parent = mainFrame
-
-local flyCorner = Instance.new("UICorner")
-flyCorner.CornerRadius = UDim.new(0, 6)
-flyCorner.Parent = flyBtn
+-- Content Frame (المحتوى الذي يتم تصغيره)
+local contentFrame = Instance.new("Frame")
+contentFrame.Size = UDim2.new(1, 0, 1, -35)
+contentFrame.Position = UDim2.new(0, 0, 0, 35)
+contentFrame.BackgroundTransparency = 1
+contentFrame.Parent = mainFrame
 
 -- Speed Label
 local speedLabel = Instance.new("TextLabel")
 speedLabel.Size = UDim2.new(1, -20, 0, 20)
-speedLabel.Position = UDim2.new(0, 10, 0, 85)
-speedLabel.Text = "السرعة: 50"
+speedLabel.Position = UDim2.new(0, 10, 0, 5)
+speedLabel.Text = "سرعة الطيران: 100"
 speedLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
 speedLabel.TextSize = 13
 speedLabel.Font = Enum.Font.SourceSans
 speedLabel.BackgroundTransparency = 1
-speedLabel.Parent = mainFrame
+speedLabel.Parent = contentFrame
 
 -- Speed Input (TextBox)
 local speedInput = Instance.new("TextBox")
 speedInput.Size = UDim2.new(1, -20, 0, 35)
-speedInput.Position = UDim2.new(0, 10, 0, 110)
-speedInput.PlaceholderText = "أدخل السرعة (مثال: 500 أو 5000)"
-speedInput.Text = "50"
+speedInput.Position = UDim2.new(0, 10, 0, 30)
+speedInput.PlaceholderText = "اكتب السرعة هنا (مثل 500 أو 5000)"
+speedInput.Text = "100"
 speedInput.TextColor3 = Color3.fromRGB(255, 255, 255)
 speedInput.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 speedInput.Font = Enum.Font.SourceSans
 speedInput.TextSize = 14
-speedInput.Parent = mainFrame
+speedInput.Parent = contentFrame
 
 local inputCorner = Instance.new("UICorner")
 inputCorner.CornerRadius = UDim.new(0, 6)
 inputCorner.Parent = speedInput
 
--- Open/Hide Floating Button
+-- Toggle Floating Button (HIDE / SHOW)
 local toggleGuiBtn = Instance.new("TextButton")
 toggleGuiBtn.Size = UDim2.new(0, 45, 0, 45)
 toggleGuiBtn.Position = UDim2.new(0, 15, 0.5, -22)
-toggleGuiBtn.Text = "FLY"
+toggleGuiBtn.Text = "HIDE"
 toggleGuiBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 toggleGuiBtn.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 toggleGuiBtn.Font = Enum.Font.SourceSansBold
-toggleGuiBtn.TextSize = 14
+toggleGuiBtn.TextSize = 12
 toggleGuiBtn.Parent = screenGui
 
 local toggleCorner = Instance.new("UICorner")
 toggleCorner.CornerRadius = UDim.new(1, 0)
 toggleCorner.Parent = toggleGuiBtn
 
--- Fly Mechanics
-local function startFlying()
+-- Jump Hold Logic
+RunService.Heartbeat:Connect(function()
 	local character = LocalPlayer.Character
-	if not character or not character:FindFirstChild("HumanoidRootPart") then return end
-	local root = character.HumanoidRootPart
-
-	bodyGyro = Instance.new("BodyGyro")
-	bodyGyro.P = 9e4
-	bodyGyro.maxTorque = Vector3.new(9e9, 9e9, 9e9)
-	bodyGyro.cframe = root.CFrame
-	bodyGyro.Parent = root
-
-	bodyVelocity = Instance.new("BodyVelocity")
-	bodyVelocity.velocity = Vector3.new(0, 0.1, 0)
-	bodyVelocity.maxForce = Vector3.new(9e9, 9e9, 9e9)
-	bodyVelocity.Parent = root
-
-	character:FindFirstChildOfClass("Humanoid").PlatformStand = true
-
-	task.spawn(function()
-		while flying and character and character:FindFirstChild("HumanoidRootPart") do
-			RunService.RenderStepped:Wait()
-			bodyGyro.cframe = Camera.CFrame
-			
-			local moveVector = Vector3.new()
-			local hum = character:FindFirstChildOfClass("Humanoid")
-			if hum then
-				moveVector = hum.MoveDirection
-			end
-			
-			if moveVector.Magnitude > 0 then
-				bodyVelocity.velocity = Camera.CFrame:VectorToWorldSpace(Vector3.new(moveVector.X, 0, moveVector.Z)) * flySpeed
-			else
-				bodyVelocity.velocity = Vector3.new(0, 0, 0)
-			end
+	if character and character:FindFirstChild("HumanoidRootPart") then
+		local root = character.HumanoidRootPart
+		local humanoid = character:FindFirstChildOfClass("Humanoid")
+		
+		if humanoid and (UserInputService:IsKeyDown(Enum.KeyCode.Space) or humanoid.Jump) then
+			root.Velocity = Camera.CFrame.LookVector * flySpeed
 		end
-	end)
-end
-
-local function stopFlying()
-	local character = LocalPlayer.Character
-	if character then
-		local hum = character:FindFirstChildOfClass("Humanoid")
-		if hum then hum.PlatformStand = false end
-	end
-	if bodyGyro then bodyGyro:Destroy() end
-	if bodyVelocity then bodyVelocity:Destroy() end
-	flying = false
-end
-
--- Events
-flyBtn.MouseButton1Click:Connect(function()
-	flying = not flying
-	if flying then
-		flyBtn.Text = "إيقاف الطيران"
-		flyBtn.BackgroundColor3 = Color3.fromRGB(225, 60, 60)
-		startFlying()
-	else
-		flyBtn.Text = "تشغيل الطيران"
-		flyBtn.BackgroundColor3 = Color3.fromRGB(45, 125, 245)
-		stopFlying()
 	end
 end)
 
+-- UI Handlers
 speedInput.FocusLost:Connect(function()
 	local val = tonumber(speedInput.Text)
 	if val then
 		flySpeed = val
-		speedLabel.Text = "السرعة: " .. tostring(val)
+		speedLabel.Text = "سرعة الطيران: " .. tostring(val)
 	else
 		speedInput.Text = tostring(flySpeed)
+	end
+end)
+
+minimizeBtn.MouseButton1Click:Connect(function()
+	isMinimized = not isMinimized
+	if isMinimized then
+		mainFrame:TweenSize(UDim2.new(0, 230, 0, 34), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.2, true)
+		contentFrame.Visible = false
+		minimizeBtn.Text = "+"
+	else
+		mainFrame:TweenSize(UDim2.new(0, 230, 0, 150), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.2, true)
+		contentFrame.Visible = true
+		minimizeBtn.Text = "-"
 	end
 end)
 
 toggleGuiBtn.MouseButton1Click:Connect(function()
 	guiVisible = not guiVisible
 	mainFrame.Visible = guiVisible
+	toggleGuiBtn.Text = guiVisible and "HIDE" or "SHOW"
 end)
 
 closeBtn.MouseButton1Click:Connect(function()
-	stopFlying()
 	screenGui:Destroy()
 end)
