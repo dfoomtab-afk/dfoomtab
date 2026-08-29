@@ -1,8 +1,7 @@
 -- ==========================================
--- الإعدادات الافتراضية
+-- الإعدادات المتغيرة
 -- ==========================================
-local MOVE_SPEED = 100
-local TELEPORT_DELAY = 0.1
+local MOVE_SPEED = 30        -- سرعة المشي الطبيعية (الافتراضية في روبلوكس 16)
 local isRunning = true
 
 local waypoints = {
@@ -22,13 +21,12 @@ local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
--- تنظيف أي واجهة قديمة بنفس الاسم
-if PlayerGui:FindFirstChild("TeleportGui") then
-    PlayerGui.TeleportGui:Destroy()
+if PlayerGui:FindFirstChild("AutoWalkGui") then
+    PlayerGui.AutoWalkGui:Destroy()
 end
 
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "TeleportGui"
+screenGui.Name = "AutoWalkGui"
 screenGui.ResetOnSpawn = false
 screenGui.Parent = PlayerGui
 
@@ -50,7 +48,7 @@ corner.Parent = mainFrame
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -40, 0, 30)
 title.Position = UDim2.new(0, 10, 0, 5)
-title.Text = "Auto Teleport"
+title.Text = "Auto Walk"
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
 title.TextSize = 16
 title.Font = Enum.Font.SourceSansBold
@@ -58,7 +56,7 @@ title.BackgroundTransparency = 1
 title.TextXAlignment = Enum.TextXAlignment.Left
 title.Parent = mainFrame
 
--- زر التصغير (X / -)
+-- زر التصغير (-)
 local minimizeBtn = Instance.new("TextButton")
 minimizeBtn.Size = UDim2.new(0, 25, 0, 25)
 minimizeBtn.Position = UDim2.new(1, -30, 0, 5)
@@ -76,8 +74,8 @@ btnCorner.Parent = minimizeBtn
 local circleBtn = Instance.new("TextButton")
 circleBtn.Size = UDim2.new(0, 50, 0, 50)
 circleBtn.Position = UDim2.new(0.05, 0, 0.2, 0)
-circleBtn.Text = "TP"
-circleBtn.TextSize = 18
+circleBtn.Text = "WALK"
+circleBtn.TextSize = 14
 circleBtn.Font = Enum.Font.SourceSansBold
 circleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 circleBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
@@ -87,10 +85,10 @@ circleBtn.Draggable = true
 circleBtn.Parent = screenGui
 
 local circleCorner = Instance.new("UICorner")
-circleCorner.CornerRadius = UDim.new(1, 0) -- لجعلها دائرة كاملة
+circleCorner.CornerRadius = UDim.new(1, 0)
 circleCorner.Parent = circleBtn
 
--- خانة أدخال السرعة
+-- خانة إدخال السرعة
 local speedInput = Instance.new("TextBox")
 speedInput.Size = UDim2.new(0.9, 0, 0, 30)
 speedInput.Position = UDim2.new(0.05, 0, 0.28, 0)
@@ -120,22 +118,19 @@ toggleCorner.CornerRadius = UDim.new(0, 5)
 toggleCorner.Parent = toggleBtn
 
 -- ==========================================
--- برمجة الأحداث والوظائف
+-- الأحداث والتحكم
 -- ==========================================
 
--- تصغير القائمة إلى دائرة
 minimizeBtn.MouseButton1Click:Connect(function()
     mainFrame.Visible = false
     circleBtn.Visible = true
 end)
 
--- فتح القائمة من الدائرة
 circleBtn.MouseButton1Click:Connect(function()
     mainFrame.Visible = true
     circleBtn.Visible = false
 end)
 
--- تحديث السرعة عند الكتابة
 speedInput.FocusLost:Connect(function()
     local val = tonumber(speedInput.Text)
     if val then
@@ -145,7 +140,6 @@ speedInput.FocusLost:Connect(function()
     end
 end)
 
--- تشغيل/إيقاف السكربت
 toggleBtn.MouseButton1Click:Connect(function()
     isRunning = not isRunning
     if isRunning then
@@ -157,28 +151,50 @@ toggleBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- حلقة الانتقال السريع
+-- ==========================================
+-- حلقة المشي الطبيعي (Pathing Loop)
+-- ==========================================
+
 task.spawn(function()
     while true do
         if isRunning then
             local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-            local hrp = char:FindFirstChild("HumanoidRootPart")
-            local humanoid = char:FindFirstChild("Humanoid")
+            local humanoid = char:FindFirstChildOfClass("Humanoid")
 
-            if hrp and humanoid and humanoid.Health > 0 then
+            if humanoid and humanoid.Health > 0 then
                 humanoid.WalkSpeed = MOVE_SPEED
 
                 for _, targetPos in ipairs(waypoints) do
                     if not isRunning then break end
-                    if hrp and humanoid and humanoid.Health > 0 then
-                        hrp.CFrame = CFrame.new(targetPos)
-                        task.wait(TELEPORT_DELAY)
+                    
+                    local charCheck = LocalPlayer.Character
+                    local humCheck = charCheck and charCheck:FindFirstChildOfClass("Humanoid")
+                    
+                    if humCheck and humCheck.Health > 0 then
+                        humCheck.WalkSpeed = MOVE_SPEED
+                        
+                        -- توجيه اللاعب للمشي نحو النقطة
+                        humCheck:MoveTo(targetPos)
+                        
+                        -- الانتظار حتى يصل اللاعب للنقطة أو تنتهي مهلة (8 ثوانٍ) لمنع التجميد إذا علق اللاعب
+                        local reached = false
+                        local conn = humCheck.MoveToFinished:Connect(function()
+                            reached = true
+                        end)
+                        
+                        local timeout = 0
+                        while not reached and timeout < 8 and isRunning do
+                            task.wait(0.1)
+                            timeout = timeout + 0.1
+                        end
+                        
+                        conn:Disconnect()
                     else
                         break
                     end
                 end
             end
         end
-        task.wait(0.1)
+        task.wait(0.5)
     end
 end)
