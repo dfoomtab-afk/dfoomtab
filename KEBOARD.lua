@@ -1,19 +1,20 @@
 -- ==========================================
 -- الإعدادات المتغيرة
 -- ==========================================
-local MOVE_SPEED = 30        -- سرعة المشي الطبيعية (الافتراضية في روبلوكس 16)
+local MOVE_SPEED = 50        -- سرعة التحرك في الهواء
+local TARGET_Y = 361         -- الارتفاع الثابت المطلوب
 local isRunning = true
 
 local waypoints = {
-    Vector3.new(-200, 361, -783),
-    Vector3.new(99, 361, -783),
-    Vector3.new(437, 361, -783),
-    Vector3.new(785, 361, -785),
-    Vector3.new(933, 361, -761),
-    Vector3.new(1180, 361, -759),
-    Vector3.new(1364, 361, -705),
-    Vector3.new(1559, 361, -752),
-    Vector3.new(1559, 361, -735)
+    Vector3.new(-200, TARGET_Y, -783),
+    Vector3.new(99, TARGET_Y, -783),
+    Vector3.new(437, TARGET_Y, -783),
+    Vector3.new(785, TARGET_Y, -785),
+    Vector3.new(933, TARGET_Y, -761),
+    Vector3.new(1180, TARGET_Y, -759),
+    Vector3.new(1364, TARGET_Y, -705),
+    Vector3.new(1559, TARGET_Y, -752),
+    Vector3.new(1559, TARGET_Y, -735)
 }
 
 -- إنشاء الواجهة الرسومية (GUI)
@@ -21,12 +22,12 @@ local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
-if PlayerGui:FindFirstChild("AutoWalkGui") then
-    PlayerGui.AutoWalkGui:Destroy()
+if PlayerGui:FindFirstChild("AirWalkGui") then
+    PlayerGui.AirWalkGui:Destroy()
 end
 
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "AutoWalkGui"
+screenGui.Name = "AirWalkGui"
 screenGui.ResetOnSpawn = false
 screenGui.Parent = PlayerGui
 
@@ -48,7 +49,7 @@ corner.Parent = mainFrame
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -40, 0, 30)
 title.Position = UDim2.new(0, 10, 0, 5)
-title.Text = "Auto Walk"
+title.Text = "Air Walk"
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
 title.TextSize = 16
 title.Font = Enum.Font.SourceSansBold
@@ -74,7 +75,7 @@ btnCorner.Parent = minimizeBtn
 local circleBtn = Instance.new("TextButton")
 circleBtn.Size = UDim2.new(0, 50, 0, 50)
 circleBtn.Position = UDim2.new(0.05, 0, 0.2, 0)
-circleBtn.Text = "WALK"
+circleBtn.Text = "AIR"
 circleBtn.TextSize = 14
 circleBtn.Font = Enum.Font.SourceSansBold
 circleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -152,49 +153,59 @@ toggleBtn.MouseButton1Click:Connect(function()
 end)
 
 -- ==========================================
--- حلقة المشي الطبيعي (Pathing Loop)
+-- حلقة الطيران والمشي الجوي (Air Walk Loop)
 -- ==========================================
 
 task.spawn(function()
     while true do
         if isRunning then
             local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+            local hrp = char:FindFirstChild("HumanoidRootPart")
             local humanoid = char:FindFirstChildOfClass("Humanoid")
 
-            if humanoid and humanoid.Health > 0 then
-                humanoid.WalkSpeed = MOVE_SPEED
+            if hrp and humanoid and humanoid.Health > 0 then
+                -- إنشاء أو جلب BodyVelocity لمنع السقوط وتثبيت الارتفاع
+                local bv = hrp:FindFirstChild("AirWalkVelocity")
+                if not bv then
+                    bv = Instance.new("BodyVelocity")
+                    bv.Name = "AirWalkVelocity"
+                    bv.MaxForce = Vector3.new(0, 400000, 0) -- قوة التحكم بالارتفاع فقط
+                    bv.Velocity = Vector3.new(0, 0, 0)
+                    bv.Parent = hrp
+                end
 
                 for _, targetPos in ipairs(waypoints) do
                     if not isRunning then break end
-                    
-                    local charCheck = LocalPlayer.Character
-                    local humCheck = charCheck and charCheck:FindFirstChildOfClass("Humanoid")
-                    
-                    if humCheck and humCheck.Health > 0 then
-                        humCheck.WalkSpeed = MOVE_SPEED
+
+                    while isRunning and hrp and humanoid and humanoid.Health > 0 do
+                        -- تثبيت الارتفاع عند 361 وحساب الاتجاه الأفقي فقط
+                        local currentPos = hrp.Position
+                        local targetHorizontal = Vector3.new(targetPos.X, TARGET_Y, targetPos.Z)
+                        local currentHorizontal = Vector3.new(currentPos.X, TARGET_Y, currentPos.Z)
                         
-                        -- توجيه اللاعب للمشي نحو النقطة
-                        humCheck:MoveTo(targetPos)
-                        
-                        -- الانتظار حتى يصل اللاعب للنقطة أو تنتهي مهلة (8 ثوانٍ) لمنع التجميد إذا علق اللاعب
-                        local reached = false
-                        local conn = humCheck.MoveToFinished:Connect(function()
-                            reached = true
-                        end)
-                        
-                        local timeout = 0
-                        while not reached and timeout < 8 and isRunning do
-                            task.wait(0.1)
-                            timeout = timeout + 0.1
+                        local distance = (targetHorizontal - currentHorizontal).Magnitude
+
+                        -- عند الوصول إلى النقطة الانتقال للتالية
+                        if distance < 3 then
+                            break
                         end
-                        
-                        conn:Disconnect()
-                    else
-                        break
+
+                        -- تعديل الموقع والاتجاه بنعومة نحو النقطة
+                        local direction = (targetHorizontal - currentHorizontal).Unit
+                        hrp.CFrame = CFrame.new(Vector3.new(currentPos.X, TARGET_Y, currentPos.Z) + direction * (MOVE_SPEED * 0.03), Vector3.new(targetPos.X, TARGET_Y, targetPos.Z))
+
+                        task.wait(0.03)
                     end
                 end
             end
+        else
+            -- إزالة تثبيت الارتفاع عند إيقاف السكربت
+            local char = LocalPlayer.Character
+            if char and char:FindFirstChild("HumanoidRootPart") then
+                local bv = char.HumanoidRootPart:FindFirstChild("AirWalkVelocity")
+                if bv then bv:Destroy() end
+            end
         end
-        task.wait(0.5)
+        task.wait(0.1)
     end
 end)
