@@ -1,8 +1,8 @@
 -- ==========================================
 -- الإعدادات المتغيرة
 -- ==========================================
-local MOVE_SPEED = 50        -- سرعة التحرك في الهواء
-local TARGET_Y = 361         -- الارتفاع الثابت المطلوب
+local MOVE_SPEED = 50        -- السرعة التي تحددها
+local TARGET_Y = 361         -- الارتفاع الثابت المطلق
 local isRunning = true
 
 local waypoints = {
@@ -19,15 +19,16 @@ local waypoints = {
 
 -- إنشاء الواجهة الرسومية (GUI)
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
-if PlayerGui:FindFirstChild("AirWalkGui") then
-    PlayerGui.AirWalkGui:Destroy()
+if PlayerGui:FindFirstChild("SmoothAirWalkGui") then
+    PlayerGui.SmoothAirWalkGui:Destroy()
 end
 
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "AirWalkGui"
+screenGui.Name = "SmoothAirWalkGui"
 screenGui.ResetOnSpawn = false
 screenGui.Parent = PlayerGui
 
@@ -49,7 +50,7 @@ corner.Parent = mainFrame
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -40, 0, 30)
 title.Position = UDim2.new(0, 10, 0, 5)
-title.Text = "Air Walk"
+title.Text = "Air Walk + Noclip"
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
 title.TextSize = 16
 title.Font = Enum.Font.SourceSansBold
@@ -119,7 +120,7 @@ toggleCorner.CornerRadius = UDim.new(0, 5)
 toggleCorner.Parent = toggleBtn
 
 -- ==========================================
--- الأحداث والتحكم
+-- الأحداث والتحكم بالواجهة
 -- ==========================================
 
 minimizeBtn.MouseButton1Click:Connect(function()
@@ -141,6 +142,14 @@ speedInput.FocusLost:Connect(function()
     end
 end)
 
+local function cleanupPhysics(char)
+    if char and char:FindFirstChild("HumanoidRootPart") then
+        local hrp = char.HumanoidRootPart
+        if hrp:FindFirstChild("FlyVelocity") then hrp.FlyVelocity:Destroy() end
+        if hrp:FindFirstChild("FlyGyro") then hrp.FlyGyro:Destroy() end
+    end
+end
+
 toggleBtn.MouseButton1Click:Connect(function()
     isRunning = not isRunning
     if isRunning then
@@ -149,13 +158,30 @@ toggleBtn.MouseButton1Click:Connect(function()
     else
         toggleBtn.Text = "الحالة: متوقف"
         toggleBtn.BackgroundColor3 = Color3.fromRGB(178, 34, 34)
+        local char = LocalPlayer.Character
+        cleanupPhysics(char)
     end
 end)
 
 -- ==========================================
--- حلقة الطيران والمشي الجوي (Air Walk Loop)
+-- نظام اختراق الجدران (Noclip Loop)
 -- ==========================================
+RunService.Stepped:Connect(function()
+    if isRunning then
+        local char = LocalPlayer.Character
+        if char then
+            for _, child in ipairs(char:GetDescendants()) do
+                if child:IsA("BasePart") then
+                    child.CanCollide = false
+                end
+            end
+        end
+    end
+end)
 
+-- ==========================================
+-- حلقة الحركة الفيزيائية السلسة
+-- ==========================================
 task.spawn(function()
     while true do
         if isRunning then
@@ -164,47 +190,40 @@ task.spawn(function()
             local humanoid = char:FindFirstChildOfClass("Humanoid")
 
             if hrp and humanoid and humanoid.Health > 0 then
-                -- إنشاء أو جلب BodyVelocity لمنع السقوط وتثبيت الارتفاع
-                local bv = hrp:FindFirstChild("AirWalkVelocity")
-                if not bv then
-                    bv = Instance.new("BodyVelocity")
-                    bv.Name = "AirWalkVelocity"
-                    bv.MaxForce = Vector3.new(0, 400000, 0) -- قوة التحكم بالارتفاع فقط
-                    bv.Velocity = Vector3.new(0, 0, 0)
-                    bv.Parent = hrp
-                end
+                local bv = hrp:FindFirstChild("FlyVelocity") or Instance.new("BodyVelocity")
+                bv.Name = "FlyVelocity"
+                bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+                bv.Parent = hrp
+
+                local bg = hrp:FindFirstChild("FlyGyro") or Instance.new("BodyGyro")
+                bg.Name = "FlyGyro"
+                bg.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+                bg.P = 9000
+                bg.Parent = hrp
 
                 for _, targetPos in ipairs(waypoints) do
                     if not isRunning then break end
 
                     while isRunning and hrp and humanoid and humanoid.Health > 0 do
-                        -- تثبيت الارتفاع عند 361 وحساب الاتجاه الأفقي فقط
                         local currentPos = hrp.Position
-                        local targetHorizontal = Vector3.new(targetPos.X, TARGET_Y, targetPos.Z)
-                        local currentHorizontal = Vector3.new(currentPos.X, TARGET_Y, currentPos.Z)
-                        
-                        local distance = (targetHorizontal - currentHorizontal).Magnitude
+                        local destination = Vector3.new(targetPos.X, TARGET_Y, targetPos.Z)
+                        local direction = (destination - currentPos)
+                        local distance = direction.Magnitude
 
-                        -- عند الوصول إلى النقطة الانتقال للتالية
-                        if distance < 3 then
+                        if distance <= 3 then
                             break
                         end
 
-                        -- تعديل الموقع والاتجاه بنعومة نحو النقطة
-                        local direction = (targetHorizontal - currentHorizontal).Unit
-                        hrp.CFrame = CFrame.new(Vector3.new(currentPos.X, TARGET_Y, currentPos.Z) + direction * (MOVE_SPEED * 0.03), Vector3.new(targetPos.X, TARGET_Y, targetPos.Z))
+                        bv.Velocity = direction.Unit * MOVE_SPEED
+                        bg.CFrame = CFrame.new(currentPos, destination)
 
-                        task.wait(0.03)
+                        task.wait(0.02)
                     end
                 end
             end
         else
-            -- إزالة تثبيت الارتفاع عند إيقاف السكربت
             local char = LocalPlayer.Character
-            if char and char:FindFirstChild("HumanoidRootPart") then
-                local bv = char.HumanoidRootPart:FindFirstChild("AirWalkVelocity")
-                if bv then bv:Destroy() end
-            end
+            cleanupPhysics(char)
         end
         task.wait(0.1)
     end
