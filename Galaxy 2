@@ -1,0 +1,568 @@
+-- ==========================================
+-- 1. قاموس اللغات (Localization Dictionary)
+-- ==========================================
+local translations = {
+    ar = {
+        title = "المساعد الاحترافي",
+        walkSpeed = "سرعة المسار",
+        flySpeed = "سرعة الطيران",
+        opacity = "شفافية الخلفية",
+        startWalk = "تشغيل المسار الآلي",
+        stopWalk = "إيقاف المسار الآلي",
+        noclipOn = "اختراق الجدران: مفعل",
+        noclipOff = "اختراق الجدران: معطل",
+        jumpFlyOn = "طيران بالقفز: مفعل",
+        jumpFlyOff = "طيران بالقفز: معطل",
+        selectLang = "اختر اللغة / Select Language",
+        apply = "تطبيق"
+    },
+    en = {
+        title = "Pro Assistant",
+        walkSpeed = "Path Speed",
+        flySpeed = "Fly Speed",
+        opacity = "Background Opacity",
+        startWalk = "Start Auto Path",
+        stopWalk = "Stop Auto Path",
+        noclipOn = "Noclip: ON",
+        noclipOff = "Noclip: OFF",
+        jumpFlyOn = "Jump Fly: ON",
+        jumpFlyOff = "Jump Fly: OFF",
+        selectLang = "Select Language",
+        apply = "Apply"
+    },
+    es = {
+        title = "Asistente Pro",
+        walkSpeed = "Velocidad de Ruta",
+        flySpeed = "Velocidad de Vuelo",
+        opacity = "Opacidad de Fondo",
+        startWalk = "Iniciar Ruta Auto",
+        stopWalk = "Detener Ruta Auto",
+        noclipOn = "Noclip: ACTIVADO",
+        noclipOff = "Noclip: DESACTIVADO",
+        jumpFlyOn = "Vuelo con Salto: ON",
+        jumpFlyOff = "Vuelo con Salto: OFF",
+        selectLang = "Seleccionar Idioma",
+        apply = "Aplicar"
+    },
+    fr = {
+        title = "Assistant Pro",
+        walkSpeed = "Vitesse du Trajet",
+        flySpeed = "Vitesse de Vol",
+        opacity = "Opacité du Fond",
+        startWalk = "Démarrer Trajet Auto",
+        stopWalk = "Arrêter Trajet Auto",
+        noclipOn = "Noclip: ACTIVÉ",
+        noclipOff = "Noclip: DÉSACTIVÉ",
+        jumpFlyOn = "Vol par Saut: ACTIVÉ",
+        jumpFlyOff = "Vol par Saut: DÉSACTIVÉ",
+        selectLang = "Choisir la Langue",
+        apply = "Appliquer"
+    },
+    tr = {
+        title = "Pro Asistan",
+        walkSpeed = "Yol Hızı",
+        flySpeed = "Uçuş Hızı",
+        opacity = "Arka Plan Opaklığı",
+        startWalk = "Otomatik Yolu Başlat",
+        stopWalk = "Otomatik Yolu Durdur",
+        noclipOn = "Noclip: AÇIK",
+        noclipOff = "Noclip: KAPALI",
+        jumpFlyOn = "Zıplama Uçuşu: AÇIK",
+        jumpFlyOff = "Zıplama Uçuşu: KAPALI",
+        selectLang = "Dil Seçin",
+        apply = "Uygula"
+    }
+}
+
+local currentLang = "ar"
+
+-- ==========================================
+-- 2. الإعدادات والفيزياء
+-- ==========================================
+local MOVE_SPEED = 50
+local FLY_SPEED = 60
+local TARGET_Y = 361
+local isPathRunning = false
+local isNoclipEnabled = false
+local isJumpFlyEnabled = false
+local isJumping = false
+
+local waypoints = {
+    Vector3.new(-200, TARGET_Y, -783),
+    Vector3.new(99, TARGET_Y, -783),
+    Vector3.new(437, TARGET_Y, -783),
+    Vector3.new(785, TARGET_Y, -785),
+    Vector3.new(933, TARGET_Y, -761),
+    Vector3.new(1180, TARGET_Y, -759),
+    Vector3.new(1364, TARGET_Y, -705),
+    Vector3.new(1559, TARGET_Y, -752),
+    Vector3.new(1559, TARGET_Y, -735)
+}
+
+-- Services
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Stats = game:GetService("Stats")
+
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+if PlayerGui:FindFirstChild("AdvancedSquareGui") then
+    PlayerGui.AdvancedSquareGui:Destroy()
+end
+
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "AdvancedSquareGui"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = PlayerGui
+
+-- ==========================================
+-- 3. نص اسم السكربت في أعلى اليسار (Saif Roblox)
+-- ==========================================
+local scriptWatermark = Instance.new("TextLabel")
+scriptWatermark.Name = "ScriptWatermark"
+scriptWatermark.Size = UDim2.new(0, 150, 0, 30)
+scriptWatermark.Position = UDim2.new(0, 15, 0, 15) -- زاوية الشاشة أعلى اليسار
+scriptWatermark.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+scriptWatermark.BackgroundTransparency = 0.3
+scriptWatermark.Text = "Saif Roblox"
+scriptWatermark.TextColor3 = Color3.fromRGB(255, 255, 255)
+scriptWatermark.Font = Enum.Font.GothamBold
+scriptWatermark.TextSize = 14
+scriptWatermark.Parent = screenGui
+
+local wmCorner = Instance.new("UICorner")
+wmCorner.CornerRadius = UDim.new(0, 8)
+wmCorner.Parent = scriptWatermark
+
+local wmStroke = Instance.new("UIStroke")
+wmStroke.Color = Color3.fromRGB(220, 20, 60)
+wmStroke.Thickness = 1.5
+wmStroke.Parent = scriptWatermark
+
+-- ==========================================
+-- 4. واجهة اختيار اللغة
+-- ==========================================
+local langFrame = Instance.new("Frame")
+langFrame.Size = UDim2.new(0, 260, 0, 220)
+langFrame.Position = UDim2.new(0.5, -130, 0.35, -110)
+langFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+langFrame.BorderSizePixel = 2
+langFrame.BorderColor3 = Color3.fromRGB(220, 20, 60)
+langFrame.Active = true
+langFrame.Draggable = true
+langFrame.Parent = screenGui
+
+local langCorner = Instance.new("UICorner")
+langCorner.CornerRadius = UDim.new(0, 12)
+langCorner.Parent = langFrame
+
+local langTitle = Instance.new("TextLabel")
+langTitle.Size = UDim2.new(1, 0, 0, 35)
+langTitle.Text = translations.ar.selectLang
+langTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+langTitle.Font = Enum.Font.GothamBold
+langTitle.TextSize = 14
+langTitle.BackgroundTransparency = 1
+langTitle.Parent = langFrame
+
+local langList = Instance.new("UIListLayout")
+langList.Parent = langFrame
+langList.HorizontalAlignment = Enum.HorizontalAlignment.Center
+langList.SortOrder = Enum.SortOrder.LayoutOrder
+langList.Padding = UDim.new(0, 5)
+
+langTitle.LayoutOrder = 1
+
+local function createLangOption(name, code, order)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0.85, 0, 0, 28)
+    btn.Text = name
+    btn.Font = Enum.Font.GothamMedium
+    btn.TextSize = 13
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+    btn.LayoutOrder = order
+    btn.Parent = langFrame
+
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, 6)
+    c.Parent = btn
+
+    btn.MouseButton1Click:Connect(function()
+        currentLang = code
+        langFrame.Visible = false
+        mainFrame.Visible = true
+        updateLanguageText()
+    end)
+end
+
+createLangOption("العربية (Arabic)", "ar", 2)
+createLangOption("English", "en", 3)
+createLangOption("Español", "es", 4)
+createLangOption("Français", "fr", 5)
+createLangOption("Türkçe", "tr", 6)
+
+-- ==========================================
+-- 5. النافذة الرئيسية المربعة (1:1 Ratio)
+-- ==========================================
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 300, 0, 300)
+mainFrame.Position = UDim2.new(0.5, -150, 0.3, -150)
+mainFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+mainFrame.BackgroundTransparency = 0.25
+mainFrame.BorderSizePixel = 2
+mainFrame.BorderColor3 = Color3.fromRGB(220, 20, 60)
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.Visible = false
+mainFrame.Parent = screenGui
+
+local mainCorner = Instance.new("UICorner")
+mainCorner.CornerRadius = UDim.new(0, 14)
+mainCorner.Parent = mainFrame
+
+-- شريط العنوان
+local titleBar = Instance.new("Frame")
+titleBar.Size = UDim2.new(1, 0, 0, 35)
+titleBar.BackgroundTransparency = 1
+titleBar.Parent = mainFrame
+
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Size = UDim2.new(1, -70, 1, 0)
+titleLabel.Position = UDim2.new(0, 10, 0, 0)
+titleLabel.Text = translations.ar.title
+titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.TextSize = 15
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+titleLabel.BackgroundTransparency = 1
+titleLabel.Parent = titleBar
+
+-- زر التصغير (-)
+local minBtn = Instance.new("TextButton")
+minBtn.Size = UDim2.new(0, 26, 0, 26)
+minBtn.Position = UDim2.new(1, -60, 0, 4)
+minBtn.Text = "-"
+minBtn.Font = Enum.Font.GothamBold
+minBtn.TextSize = 18
+minBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+minBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+minBtn.Parent = titleBar
+
+local minCorner = Instance.new("UICorner")
+minCorner.CornerRadius = UDim.new(0, 6)
+minCorner.Parent = minBtn
+
+-- زر الإغلاق النهائي (X)
+local closeBtn = Instance.new("TextButton")
+closeBtn.Size = UDim2.new(0, 26, 0, 26)
+closeBtn.Position = UDim2.new(1, -30, 0, 4)
+closeBtn.Text = "X"
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.TextSize = 14
+closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
+closeBtn.Parent = titleBar
+
+local closeCorner = Instance.new("UICorner")
+closeCorner.CornerRadius = UDim.new(0, 6)
+closeCorner.Parent = closeBtn
+
+-- ==========================================
+-- 6. زر الدائرة العائمة بالصورة المخصصة
+-- ==========================================
+local circleBtn = Instance.new("ImageButton")
+circleBtn.Size = UDim2.new(0, 55, 0, 55)
+circleBtn.Position = UDim2.new(0.05, 0, 0.2, 0)
+circleBtn.Image = "rbxassetid://74071008904216"
+circleBtn.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+circleBtn.BackgroundTransparency = 0.2
+circleBtn.Visible = false
+circleBtn.Active = true
+circleBtn.Draggable = true
+circleBtn.Parent = screenGui
+
+local circleCorner = Instance.new("UICorner")
+circleCorner.CornerRadius = UDim.new(1, 0)
+circleCorner.Parent = circleBtn
+
+local circleStroke = Instance.new("UIStroke")
+circleStroke.Color = Color3.fromRGB(220, 20, 60)
+circleStroke.Thickness = 2.5
+circleStroke.Parent = circleBtn
+
+-- حاوية العناصر الداخلية
+local contentFrame = Instance.new("Frame")
+contentFrame.Size = UDim2.new(1, -20, 1, -45)
+contentFrame.Position = UDim2.new(0, 10, 0, 40)
+contentFrame.BackgroundTransparency = 1
+contentFrame.Parent = mainFrame
+
+local layout = Instance.new("UIListLayout")
+layout.Parent = contentFrame
+layout.SortOrder = Enum.SortOrder.LayoutOrder
+layout.Padding = UDim.new(0, 6)
+
+local function createButton(text, bgCol)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, 0, 0, 32)
+    btn.Text = text
+    btn.Font = Enum.Font.GothamSemibold
+    btn.TextSize = 13
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.BackgroundColor3 = bgCol
+    btn.Parent = contentFrame
+
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, 6)
+    c.Parent = btn
+    return btn
+end
+
+local function createSliderBox(placeholderText)
+    local box = Instance.new("TextBox")
+    box.Size = UDim2.new(1, 0, 0, 28)
+    box.PlaceholderText = placeholderText
+    box.Font = Enum.Font.Gotham
+    box.TextSize = 12
+    box.TextColor3 = Color3.fromRGB(255, 255, 255)
+    box.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+    box.Parent = contentFrame
+
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, 6)
+    c.Parent = box
+    return box
+end
+
+local pathBtn = createButton("", Color3.fromRGB(40, 40, 40))
+local noclipBtn = createButton("", Color3.fromRGB(40, 40, 40))
+local jumpFlyBtn = createButton("", Color3.fromRGB(40, 40, 40))
+
+local speedInput = createSliderBox("")
+local opacityInput = createSliderBox("")
+
+-- ==========================================
+-- 7. لوحة معلومات الأداء (FPS & Ping)
+-- ==========================================
+local statsLabel = Instance.new("TextLabel")
+statsLabel.Size = UDim2.new(0, 160, 0, 30)
+statsLabel.Position = UDim2.new(1, -165, 1, -35)
+statsLabel.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+statsLabel.BackgroundTransparency = 0.3
+statsLabel.BorderColor3 = Color3.fromRGB(220, 20, 60)
+statsLabel.BorderSizePixel = 1
+statsLabel.Text = "FPS: 60 | Ping: 0ms"
+statsLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+statsLabel.Font = Enum.Font.Code
+statsLabel.TextSize = 11
+statsLabel.Parent = screenGui
+
+local statsCorner = Instance.new("UICorner")
+statsCorner.CornerRadius = UDim.new(0, 6)
+statsCorner.Parent = statsLabel
+
+-- ==========================================
+-- 8. تحديث لغات الواجهة
+-- ==========================================
+function updateLanguageText()
+    local t = translations[currentLang] or translations.ar
+    titleLabel.Text = t.title
+    
+    speedInput.PlaceholderText = t.walkSpeed .. " (حالياً: " .. MOVE_SPEED .. ")"
+    speedInput.Text = tostring(MOVE_SPEED)
+
+    opacityInput.PlaceholderText = t.opacity .. " (0 - 1)"
+    
+    pathBtn.Text = isPathRunning and t.stopWalk or t.startWalk
+    pathBtn.BackgroundColor3 = isPathRunning and Color3.fromRGB(180, 40, 40) or Color3.fromRGB(40, 140, 60)
+    
+    noclipBtn.Text = isNoclipEnabled and t.noclipOn or t.noclipOff
+    noclipBtn.BackgroundColor3 = isNoclipEnabled and Color3.fromRGB(40, 140, 60) or Color3.fromRGB(40, 40, 40)
+
+    jumpFlyBtn.Text = isJumpFlyEnabled and t.jumpFlyOn or t.jumpFlyOff
+    jumpFlyBtn.BackgroundColor3 = isJumpFlyEnabled and Color3.fromRGB(40, 140, 60) or Color3.fromRGB(40, 40, 40)
+end
+
+-- ==========================================
+-- 9. البرمجة والوظائف
+-- ==========================================
+local function fullCleanup()
+    isPathRunning = false
+    isNoclipEnabled = false
+    isJumpFlyEnabled = false
+    
+    local char = LocalPlayer.Character
+    if char and char:FindFirstChild("HumanoidRootPart") then
+        local hrp = char.HumanoidRootPart
+        if hrp:FindFirstChild("FlyVelocity") then hrp.FlyVelocity:Destroy() end
+        if hrp:FindFirstChild("FlyGyro") then hrp.FlyGyro:Destroy() end
+        if hrp:FindFirstChild("JumpFlyVel") then hrp.JumpFlyVel:Destroy() end
+    end
+end
+
+closeBtn.MouseButton1Click:Connect(function()
+    fullCleanup()
+    screenGui:Destroy()
+end)
+
+minBtn.MouseButton1Click:Connect(function()
+    mainFrame.Visible = false
+    circleBtn.Visible = true
+end)
+
+circleBtn.MouseButton1Click:Connect(function()
+    mainFrame.Visible = true
+    circleBtn.Visible = false
+end)
+
+opacityInput.FocusLost:Connect(function()
+    local val = tonumber(opacityInput.Text)
+    if val and val >= 0 and val <= 1 then
+        mainFrame.BackgroundTransparency = val
+    end
+end)
+
+speedInput.FocusLost:Connect(function()
+    local val = tonumber(speedInput.Text)
+    if val then
+        MOVE_SPEED = val
+    end
+end)
+
+pathBtn.MouseButton1Click:Connect(function()
+    isPathRunning = not isPathRunning
+    updateLanguageText()
+    if not isPathRunning then
+        fullCleanup()
+    end
+end)
+
+noclipBtn.MouseButton1Click:Connect(function()
+    isNoclipEnabled = not isNoclipEnabled
+    updateLanguageText()
+end)
+
+jumpFlyBtn.MouseButton1Click:Connect(function()
+    isJumpFlyEnabled = not isJumpFlyEnabled
+    updateLanguageText()
+    if not isJumpFlyEnabled then
+        local char = LocalPlayer.Character
+        if char and char:FindFirstChild("HumanoidRootPart") and char.HumanoidRootPart:FindFirstChild("JumpFlyVel") then
+            char.HumanoidRootPart.JumpFlyVel:Destroy()
+        end
+    end
+end)
+
+-- ==========================================
+-- 10. محركات الفيزياء والأحداث المستمرة
+-- ==========================================
+UserInputService.JumpRequest:Connect(function()
+    if isJumpFlyEnabled then
+        isJumping = true
+    end
+end)
+
+RunService.RenderStepped:Connect(function()
+    if isJumpFlyEnabled then
+        local char = LocalPlayer.Character
+        if char and char:FindFirstChild("HumanoidRootPart") then
+            local hrp = char.HumanoidRootPart
+            local humanoid = char:FindFirstChildOfClass("Humanoid")
+            
+            if humanoid and UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+                isJumping = true
+            end
+
+            local bv = hrp:FindFirstChild("JumpFlyVel") or Instance.new("BodyVelocity")
+            bv.Name = "JumpFlyVel"
+            bv.MaxForce = Vector3.new(0, math.huge, 0)
+            bv.Parent = hrp
+
+            if isJumping then
+                bv.Velocity = Vector3.new(0, FLY_SPEED, 0)
+                isJumping = false
+            else
+                bv.Velocity = Vector3.new(0, -10, 0)
+            end
+        end
+    end
+end)
+
+RunService.Stepped:Connect(function()
+    if isNoclipEnabled or isPathRunning then
+        local char = LocalPlayer.Character
+        if char then
+            for _, child in ipairs(char:GetDescendants()) do
+                if child:IsA("BasePart") then
+                    child.CanCollide = false
+                end
+            end
+        end
+    end
+end)
+
+task.spawn(function()
+    while true do
+        if isPathRunning then
+            local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+            local hrp = char:FindFirstChild("HumanoidRootPart")
+            local humanoid = char:FindFirstChildOfClass("Humanoid")
+
+            if hrp and humanoid and humanoid.Health > 0 then
+                local bv = hrp:FindFirstChild("FlyVelocity") or Instance.new("BodyVelocity")
+                bv.Name = "FlyVelocity"
+                bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+                bv.Parent = hrp
+
+                local bg = hrp:FindFirstChild("FlyGyro") or Instance.new("BodyGyro")
+                bg.Name = "FlyGyro"
+                bg.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+                bg.P = 9000
+                bg.Parent = hrp
+
+                for _, targetPos in ipairs(waypoints) do
+                    if not isPathRunning then break end
+
+                    while isPathRunning and hrp and humanoid and humanoid.Health > 0 do
+                        local currentPos = hrp.Position
+                        local destination = Vector3.new(targetPos.X, TARGET_Y, targetPos.Z)
+                        local direction = (destination - currentPos)
+                        local distance = direction.Magnitude
+
+                        if distance <= 3 then
+                            break
+                        end
+
+                        bv.Velocity = direction.Unit * MOVE_SPEED
+                        bg.CFrame = CFrame.new(currentPos, destination)
+
+                        task.wait(0.02)
+                    end
+                end
+            end
+        end
+        task.wait(0.1)
+    end
+end)
+
+-- عداد FPS & Ping
+local lastUpdate = os.clock()
+local frameCount = 0
+
+RunService.RenderStepped:Connect(function()
+    frameCount = frameCount + 1
+    local now = os.clock()
+    
+    if now - lastUpdate >= 1 then
+        local fps = math.floor(frameCount / (now - lastUpdate))
+        local ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue())
+        
+        statsLabel.Text = string.format("FPS: %d | Ping: %dms", fps, ping)
+        
+        frameCount = 0
+        lastUpdate = now
+    end
+end)
