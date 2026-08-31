@@ -1,0 +1,165 @@
+-- Saif Roblox | Premium Hub - Delta Executor Version
+
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local Window = Rayfield:CreateWindow({
+   Name = "Saif Roblox | Premium Hub",
+   Icon = 0,
+   LoadingTitle = "جارٍ تحميل السكربت...",
+   LoadingSubtitle = "بواسطة Saif",
+   ConfigurationSaving = {
+      Enabled = true,
+      FolderName = "SaifHub",
+      FileName = "Config"
+   },
+   Discord = {
+      Enabled = false,
+      Invite = "noinvitelink",
+      RememberJoins = true
+   },
+   KeySystem = false
+})
+
+-- الخدمات الأساسية
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Stats = game:GetService("Stats")
+local LocalPlayer = Players.LocalPlayer
+
+-- المتغيرات
+local WalkSpeedValue = 50
+local AirWalkEnabled = false
+local NoclipEnabled = false
+local AirWalkPlatform = nil
+
+-- تبويب الرئيسية
+local MainTab = Window:CreateTab("الرئيسية", 4483362458)
+
+local SpeedSlider = MainTab:CreateSlider({
+   Name = "سرعة المشي (WalkSpeed)",
+   Range = {16, 500},
+   Increment = 1,
+   Suffix = " Speed",
+   CurrentValue = 50,
+   Flag = "SpeedSlider",
+   Callback = function(Value)
+      WalkSpeedValue = Value
+      if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+         LocalPlayer.Character.Humanoid.WalkSpeed = WalkSpeedValue
+      end
+   end,
+})
+
+local AirWalkToggle = MainTab:CreateToggle({
+   Name = "تفعيل المشي الهوائي (Air Walk)",
+   CurrentValue = false,
+   Flag = "AirWalkToggle",
+   Callback = function(Value)
+      AirWalkEnabled = Value
+      if not AirWalkEnabled and AirWalkPlatform then
+         AirWalkPlatform:Destroy()
+         AirWalkPlatform = nil
+      end
+   end,
+})
+
+local NoclipToggle = MainTab:CreateToggle({
+   Name = "اختراق الجدران (Noclip)",
+   CurrentValue = false,
+   Flag = "NoclipToggle",
+   Callback = function(Value)
+      NoclipEnabled = Value
+   end,
+})
+
+-- تبويب الإعدادات
+local SettingsTab = Window:CreateTab("الإعدادات", 4483345998)
+
+local Keybind = SettingsTab:CreateKeybind({
+   Name = "زر إخفاء/إظهار القائمة",
+   CurrentKey = "RightControl",
+   HoldToInteract = false,
+   Flag = "UIKeybind",
+   Callback = function(Keybind)
+      -- يتم التبديل تلقائياً بواسطة Rayfield
+   end,
+})
+
+-- عرض الـ FPS والـ Ping
+local FPSLabel = SettingsTab:CreateLabel("معدل الإطارات (FPS): جاري الحساب...")
+local PingLabel = SettingsTab:CreateLabel("قوة الإنترنت (Ping): جاري الحساب...")
+
+SettingsTab:CreateButton({
+   Name = "إعادة ضبط الإعدادات",
+   Callback = function()
+      SpeedSlider:Set(16)
+      AirWalkToggle:Set(false)
+      NoclipToggle:Set(false)
+      Rayfield:Notify({
+         Title = "تمت العملية",
+         Content = "تمت إعادة ضبط جميع الإعدادات بنجاح!",
+         Duration = 3,
+         Image = 4483362458,
+      })
+   end,
+})
+
+-- البرمجة الخلفية للميزات (Loop Services)
+
+-- 1. تطبيق اختراق الجدران والسرعة والمشي الهوائي
+RunService.Stepped:Connect(function()
+   if LocalPlayer.Character then
+      -- تطبيق السرعة
+      if LocalPlayer.Character:FindFirstChild("Humanoid") and LocalPlayer.Character.Humanoid.WalkSpeed ~= WalkSpeedValue then
+         LocalPlayer.Character.Humanoid.WalkSpeed = WalkSpeedValue
+      end
+      
+      -- تطبيق Noclip
+      if NoclipEnabled then
+         for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
+            if part:IsA("BasePart") and part.CanCollide == true then
+               part.CanCollide = false
+            end
+         end
+      end
+      
+      -- تطبيق Air Walk
+      if AirWalkEnabled and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+         if not AirWalkPlatform or not AirWalkPlatform.Parent then
+            AirWalkPlatform = Instance.new("Part")
+            AirWalkPlatform.Size = Vector3.new(6, 1, 6)
+            AirWalkPlatform.Transparency = 1
+            AirWalkPlatform.Anchored = true
+            AirWalkPlatform.Parent = workspace
+         end
+         AirWalkPlatform.CFrame = LocalPlayer.Character.HumanoidRootPart.CFrame * CFrame.new(0, -3.5, 0)
+      end
+   end
+end)
+
+-- 2. تحديث مؤشرات الـ FPS والـ Ping بشكل حي
+local FrameCounter = 0
+local LastUpdate = tick()
+
+RunService.RenderStepped:Connect(function()
+   FrameCounter = FrameCounter + 1
+   local CurrentTime = tick()
+   
+   if CurrentTime - LastUpdate >= 1 then
+      local FPS = math.floor(FrameCounter / (CurrentTime - LastUpdate))
+      local Ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue())
+      
+      FPSLabel:Set("معدل الإطارات (FPS): " .. tostring(FPS))
+      PingLabel:Set("قوة الإنترنت (Ping): " .. tostring(Ping) .. " ms")
+      
+      FrameCounter = 0
+      LastUpdate = CurrentTime
+   end
+end)
+
+Rayfield:Notify({
+   Title = "Saif Roblox",
+   Content = "تم تحميل السكربت بنجاح على Delta!",
+   Duration = 5,
+   Image = 4483362458,
+})
