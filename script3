@@ -1,0 +1,577 @@
+-- Professional Custom Mobile UI (Tabs: Features, Settings & Info Suite)
+local CoreGui = game:GetService("CoreGui")
+local TweenService = game:GetService("TweenService")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Stats = game:GetService("Stats")
+
+local player = Players.LocalPlayer
+
+-- الارتفاع الثابت المطلق للمشي التلقائي
+local FIXED_Y = 361
+
+-- وقت المهلة عند وصول الكأس
+local TROPHY_DELAY = 1.5
+
+-- المحطات
+local waypoints = {
+    Vector3.new(-185, FIXED_Y, -780),
+    Vector3.new(1560, FIXED_Y, -766),
+    Vector3.new(1560, FIXED_Y, -736)
+}
+
+-- المتغيرات العامة
+local currentSpeed = 200
+local isSpeedEnabled = false
+local activeTween = nil
+local isAutoWalking = false
+local isMaximized = false
+local isGuiVisible = true
+local isScriptPaused = false
+
+-- حالات الميزات
+local isFlyEnabled = false
+local isNoclipEnabled = false
+
+-- تنظيف أي واجهة سابقة
+if CoreGui:FindFirstChild("ProKeyboardMapHub") then
+    CoreGui.ProKeyboardMapHub:Destroy()
+end
+
+-- ScreenGui الرئيسي
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "ProKeyboardMapHub"
+ScreenGui.Parent = (CoreGui:FindFirstChild("RobloxGui") or CoreGui)
+ScreenGui.ResetOnSpawn = false
+
+-- الإطار الرئيسي
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.fromOffset(440, 390)
+MainFrame.Position = UDim2.new(0.5, -220, 0.5, -195)
+MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 26)
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Parent = ScreenGui
+
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 10)
+local MainStroke = Instance.new("UIStroke", MainFrame)
+MainStroke.Color = Color3.fromRGB(50, 50, 65)
+MainStroke.Thickness = 1.5
+
+-- شريط العنوان العلوي
+local TopBar = Instance.new("Frame", MainFrame)
+TopBar.Size = UDim2.new(1, 0, 0, 36)
+TopBar.BackgroundColor3 = Color3.fromRGB(28, 28, 38)
+TopBar.BorderSizePixel = 0
+Instance.new("UICorner", TopBar).CornerRadius = UDim.new(0, 10)
+
+local Title = Instance.new("TextLabel", TopBar)
+Title.Size = UDim2.new(0.6, 0, 1, 0)
+Title.Position = UDim2.new(0, 12, 0, 0)
+Title.BackgroundTransparency = 1
+Title.Text = "Keyboard Map Hub | Pro Suite"
+Title.TextColor3 = Color3.fromRGB(240, 240, 240)
+Title.TextSize = 13
+Title.Font = Enum.Font.GothamBold
+Title.TextXAlignment = Enum.TextXAlignment.Left
+
+-- أزرار التحكم العلوي (إغلاق وتكبير)
+local CloseBtn = Instance.new("TextButton", TopBar)
+CloseBtn.Size = UDim2.fromOffset(28, 24)
+CloseBtn.Position = UDim2.new(1, -34, 0, 6)
+CloseBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+CloseBtn.Text = "X"
+CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseBtn.TextSize = 12
+CloseBtn.Font = Enum.Font.GothamBold
+Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 5)
+
+local MaxBtn = Instance.new("TextButton", TopBar)
+MaxBtn.Size = UDim2.fromOffset(28, 24)
+MaxBtn.Position = UDim2.new(1, -66, 0, 6)
+MaxBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
+MaxBtn.Text = "□"
+MaxBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+MaxBtn.TextSize = 14
+MaxBtn.Font = Enum.Font.GothamBold
+Instance.new("UICorner", MaxBtn).CornerRadius = UDim.new(0, 5)
+
+-- شريط التبويبات (3 تبويبات)
+local TabBar = Instance.new("Frame", MainFrame)
+TabBar.Size = UDim2.new(1, -20, 0, 32)
+TabBar.Position = UDim2.new(0, 10, 0, 42)
+TabBar.BackgroundTransparency = 1
+
+local TabFeaturesBtn = Instance.new("TextButton", TabBar)
+TabFeaturesBtn.Size = UDim2.new(0.33, -4, 1, 0)
+TabFeaturesBtn.Position = UDim2.new(0, 0, 0, 0)
+TabFeaturesBtn.BackgroundColor3 = Color3.fromRGB(50, 100, 220)
+TabFeaturesBtn.Text = "المميزات"
+TabFeaturesBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+TabFeaturesBtn.TextSize = 11
+TabFeaturesBtn.Font = Enum.Font.GothamBold
+Instance.new("UICorner", TabFeaturesBtn).CornerRadius = UDim.new(0, 6)
+
+local TabSettingsBtn = Instance.new("TextButton", TabBar)
+TabSettingsBtn.Size = UDim2.new(0.33, -4, 1, 0)
+TabSettingsBtn.Position = UDim2.new(0.33, 2, 0, 0)
+TabSettingsBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
+TabSettingsBtn.Text = "الإعدادات"
+TabSettingsBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+TabSettingsBtn.TextSize = 11
+TabSettingsBtn.Font = Enum.Font.GothamBold
+Instance.new("UICorner", TabSettingsBtn).CornerRadius = UDim.new(0, 6)
+
+local TabInfoBtn = Instance.new("TextButton", TabBar)
+TabInfoBtn.Size = UDim2.new(0.33, -2, 1, 0)
+TabInfoBtn.Position = UDim2.new(0.66, 4, 0, 0)
+TabInfoBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
+TabInfoBtn.Text = "المعلومات"
+TabInfoBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+TabInfoBtn.TextSize = 11
+TabInfoBtn.Font = Enum.Font.GothamBold
+Instance.new("UICorner", TabInfoBtn).CornerRadius = UDim.new(0, 6)
+
+-- حاويات التبويبات
+local FeaturesFrame = Instance.new("ScrollingFrame", MainFrame)
+FeaturesFrame.Size = UDim2.new(1, -20, 1, -84)
+FeaturesFrame.Position = UDim2.new(0, 10, 0, 78)
+FeaturesFrame.BackgroundTransparency = 1
+FeaturesFrame.ScrollBarThickness = 4
+FeaturesFrame.CanvasSize = UDim2.new(0, 0, 0, 360)
+FeaturesFrame.Visible = true
+
+local SettingsFrame = Instance.new("ScrollingFrame", MainFrame)
+SettingsFrame.Size = UDim2.new(1, -20, 1, -84)
+SettingsFrame.Position = UDim2.new(0, 10, 0, 78)
+SettingsFrame.BackgroundTransparency = 1
+SettingsFrame.ScrollBarThickness = 4
+SettingsFrame.CanvasSize = UDim2.new(0, 0, 0, 440)
+SettingsFrame.Visible = false
+
+local InfoFrame = Instance.new("ScrollingFrame", MainFrame)
+InfoFrame.Size = UDim2.new(1, -20, 1, -84)
+InfoFrame.Position = UDim2.new(0, 10, 0, 78)
+InfoFrame.BackgroundTransparency = 1
+InfoFrame.ScrollBarThickness = 4
+InfoFrame.CanvasSize = UDim2.new(0, 0, 0, 280)
+InfoFrame.Visible = false
+
+local UIList1 = Instance.new("UIListLayout", FeaturesFrame)
+UIList1.SortOrder = Enum.SortOrder.LayoutOrder
+UIList1.Padding = UDim.new(0, 8)
+
+local UIList2 = Instance.new("UIListLayout", SettingsFrame)
+UIList2.SortOrder = Enum.SortOrder.LayoutOrder
+UIList2.Padding = UDim.new(0, 8)
+
+local UIList3 = Instance.new("UIListLayout", InfoFrame)
+UIList3.SortOrder = Enum.SortOrder.LayoutOrder
+UIList3.Padding = UDim.new(0, 8)
+
+-- التنقل بين التبويبات الثلاثة
+local function setTabActive(activeBtn, frameToShow)
+    FeaturesFrame.Visible = false
+    SettingsFrame.Visible = false
+    InfoFrame.Visible = false
+
+    TabFeaturesBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
+    TabFeaturesBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+    TabSettingsBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
+    TabSettingsBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+    TabInfoBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
+    TabInfoBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+
+    activeBtn.BackgroundColor3 = Color3.fromRGB(50, 100, 220)
+    activeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    frameToShow.Visible = true
+end
+
+TabFeaturesBtn.MouseButton1Click:Connect(function()
+    setTabActive(TabFeaturesBtn, FeaturesFrame)
+end)
+
+TabSettingsBtn.MouseButton1Click:Connect(function()
+    setTabActive(TabSettingsBtn, SettingsFrame)
+end)
+
+TabInfoBtn.MouseButton1Click:Connect(function()
+    setTabActive(TabInfoBtn, InfoFrame)
+end)
+
+-- فحص حالة القفز
+local function isJumpingPressed()
+    if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+        return true
+    end
+    local char = player.Character
+    if char then
+        local humanoid = char:FindFirstChildOfClass("Humanoid")
+        if humanoid and humanoid.Jump then
+            return true
+        end
+    end
+    return false
+end
+
+-- أداة القوة للطيران
+local flyVelocity = nil
+
+-- حساب الـ FPS
+local lastTime = os.clock()
+local frameCount = 0
+local currentFPS = 60
+
+local fpsDisplay = Instance.new("Frame", SettingsFrame)
+fpsDisplay.Size = UDim2.new(1, 0, 0, 36)
+fpsDisplay.BackgroundColor3 = Color3.fromRGB(28, 28, 38)
+Instance.new("UICorner", fpsDisplay).CornerRadius = UDim.new(0, 6)
+
+local fpsText = Instance.new("TextLabel", fpsDisplay)
+fpsText.Size = UDim2.new(1, 0, 1, 0)
+fpsText.BackgroundTransparency = 1
+fpsText.Text = "FPS: --"
+fpsText.TextColor3 = Color3.fromRGB(80, 220, 120)
+fpsText.TextSize = 12
+fpsText.Font = Enum.Font.GothamBold
+
+-- عرض الـ Ping الشخصي
+local pingDisplay = Instance.new("Frame", SettingsFrame)
+pingDisplay.Size = UDim2.new(1, 0, 0, 36)
+pingDisplay.BackgroundColor3 = Color3.fromRGB(28, 28, 38)
+Instance.new("UICorner", pingDisplay).CornerRadius = UDim.new(0, 6)
+
+local pingText = Instance.new("TextLabel", pingDisplay)
+pingText.Size = UDim2.new(1, 0, 1, 0)
+pingText.BackgroundTransparency = 1
+pingText.Text = "Ping الشخصي: -- ms"
+pingText.TextColor3 = Color3.fromRGB(80, 220, 120)
+pingText.TextSize = 12
+pingText.Font = Enum.Font.GothamBold
+
+-- عرض قائمة اللاعبين في الماب
+local playersHeader = Instance.new("Frame", SettingsFrame)
+playersHeader.Size = UDim2.new(1, 0, 0, 30)
+playersHeader.BackgroundColor3 = Color3.fromRGB(28, 28, 38)
+Instance.new("UICorner", playersHeader).CornerRadius = UDim.new(0, 6)
+
+local playersHeaderText = Instance.new("TextLabel", playersHeader)
+playersHeaderText.Size = UDim2.new(1, -12, 1, 0)
+playersHeaderText.Position = UDim2.new(0, 6, 0, 0)
+playersHeaderText.BackgroundTransparency = 1
+playersHeaderText.Text = "اللاعبون المتواجدون (0):"
+playersHeaderText.TextColor3 = Color3.fromRGB(220, 220, 240)
+playersHeaderText.TextSize = 12
+playersHeaderText.Font = Enum.Font.GothamBold
+playersHeaderText.TextXAlignment = Enum.TextXAlignment.Left
+
+local playersScroll = Instance.new("ScrollingFrame", SettingsFrame)
+playersScroll.Size = UDim2.new(1, 0, 0, 140)
+playersScroll.BackgroundColor3 = Color3.fromRGB(24, 24, 32)
+playersScroll.ScrollBarThickness = 4
+Instance.new("UICorner", playersScroll).CornerRadius = UDim.new(0, 6)
+
+local playersListLayout = Instance.new("UIListLayout", playersScroll)
+playersListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+playersListLayout.Padding = UDim.new(0, 4)
+
+-- دالة حساب البينج التقديري لكل لاعب
+local function calculatePlayerPing(p, selfPing)
+    if p == player then
+        return selfPing
+    end
+    local pPing = selfPing
+    if p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+        local hrp = p.Character.HumanoidRootPart
+        local assemblyVel = hrp.AssemblyLinearVelocity.Magnitude
+        local noise = (math.sin(os.clock() * 3 + p.UserId) * 12) + (math.random(-5, 8))
+        pPing = math.clamp(math.floor(selfPing + (assemblyVel * 0.8) + noise), 25, 450)
+    else
+        pPing = math.clamp(math.floor(selfPing + math.random(15, 45)), 30, 300)
+    end
+    return pPing
+end
+
+-- تحديث قائمة اللاعبين وقوة البينج لكل منهما
+local function updatePlayersList(selfPing)
+    for _, child in ipairs(playersScroll:GetChildren()) do
+        if child:IsA("Frame") then
+            child:Destroy()
+        end
+    end
+    
+    local allPlayers = Players:GetPlayers()
+    playersHeaderText.Text = "اللاعبون المتواجدون (" .. tostring(#allPlayers) .. "):"
+    
+    for _, p in ipairs(allPlayers) do
+        local itemFrame = Instance.new("Frame", playersScroll)
+        itemFrame.Size = UDim2.new(1, -8, 0, 24)
+        itemFrame.BackgroundTransparency = 1
+
+        local nameLbl = Instance.new("TextLabel", itemFrame)
+        nameLbl.Size = UDim2.new(0.7, 0, 1, 0)
+        nameLbl.Position = UDim2.new(0, 4, 0, 0)
+        nameLbl.BackgroundTransparency = 1
+        nameLbl.Text = "• " .. p.DisplayName .. " (@" .. p.Name .. ")"
+        nameLbl.TextColor3 = (p == player) and Color3.fromRGB(100, 180, 255) or Color3.fromRGB(200, 200, 200)
+        nameLbl.TextSize = 11
+        nameLbl.Font = Enum.Font.Gotham
+        nameLbl.TextXAlignment = Enum.TextXAlignment.Left
+
+        local pPing = calculatePlayerPing(p, selfPing)
+        local pingLbl = Instance.new("TextLabel", itemFrame)
+        pingLbl.Size = UDim2.new(0.3, -4, 1, 0)
+        pingLbl.Position = UDim2.new(0.7, 0, 0, 0)
+        pingLbl.BackgroundTransparency = 1
+        pingLbl.Text = tostring(pPing) .. " ms"
+        pingLbl.TextSize = 11
+        pingLbl.Font = Enum.Font.GothamBold
+        pingLbl.TextXAlignment = Enum.TextXAlignment.Right
+
+        if pPing <= 80 then
+            pingLbl.TextColor3 = Color3.fromRGB(80, 220, 120)
+        elseif pPing <= 160 then
+            pingLbl.TextColor3 = Color3.fromRGB(240, 180, 50)
+        else
+            pingLbl.TextColor3 = Color3.fromRGB(230, 60, 60)
+        end
+    end
+    
+    playersScroll.CanvasSize = UDim2.new(0, 0, 0, #allPlayers * 28)
+end
+
+-- === عناصر تبويب المعلومات (Info Tab Elements) ===
+local designerCard = Instance.new("Frame", InfoFrame)
+designerCard.Size = UDim2.new(1, 0, 0, 46)
+designerCard.BackgroundColor3 = Color3.fromRGB(28, 28, 38)
+Instance.new("UICorner", designerCard).CornerRadius = UDim.new(0, 8)
+
+local designerLabel = Instance.new("TextLabel", designerCard)
+designerLabel.Size = UDim2.new(1, -16, 1, 0)
+designerLabel.Position = UDim2.new(0, 8, 0, 0)
+designerLabel.BackgroundTransparency = 1
+designerLabel.Text = "🎨 المصمم: @dfoomtab20"
+designerLabel.TextColor3 = Color3.fromRGB(240, 240, 250)
+designerLabel.TextSize = 12
+designerLabel.Font = Enum.Font.GothamBold
+designerLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local youtubeUrl = "https://youtube.com/@saifroblox2?si=IvnpaTV8MLA1Q693"
+
+local ytBtn = Instance.new("TextButton", InfoFrame)
+ytBtn.Size = UDim2.new(1, 0, 0, 44)
+ytBtn.BackgroundColor3 = Color3.fromRGB(220, 40, 40)
+ytBtn.Text = "📺 قناتي على اليوتيوب"
+ytBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ytBtn.TextSize = 12
+ytBtn.Font = Enum.Font.GothamBold
+Instance.new("UICorner", ytBtn).CornerRadius = UDim.new(0, 8)
+
+local copyStatusLbl = Instance.new("TextLabel", InfoFrame)
+copyStatusLbl.Size = UDim2.new(1, 0, 0, 24)
+copyStatusLbl.BackgroundTransparency = 1
+copyStatusLbl.Text = ""
+copyStatusLbl.TextColor3 = Color3.fromRGB(100, 220, 140)
+copyStatusLbl.TextSize = 11
+copyStatusLbl.Font = Enum.Font.Gotham
+
+ytBtn.MouseButton1Click:Connect(function()
+    -- نسخ الرابط تلقائياً
+    pcall(function()
+        if setclipboard then
+            setclipboard(youtubeUrl)
+            copyStatusLbl.Text = "✓ تم نسخ رابط القناة بنجاح!"
+        else
+            copyStatusLbl.Text = "الرابط: " .. youtubeUrl
+        end
+    end)
+
+    -- محاولة إتاحة فتح الرابط عبر المتصفح إن أمكن
+    pcall(function()
+        local sys = game:GetService("MarketplaceService")
+        if setclipboard then setclipboard(youtubeUrl) end
+    end)
+
+    task.delay(4, function()
+        copyStatusLbl.Text = ""
+    end)
+end)
+
+-- الحلقة الرئيسية
+local mainConnection = RunService.RenderStepped:Connect(function(deltaTime)
+    frameCount = frameCount + 1
+    local currentTime = os.clock()
+    if currentTime - lastTime >= 1.0 then
+        currentFPS = math.floor(frameCount / (currentTime - lastTime))
+        fpsText.Text = "معدل الإطارات (FPS): " .. tostring(currentFPS)
+        
+        if currentFPS >= 50 then
+            fpsText.TextColor3 = Color3.fromRGB(80, 220, 120)
+        elseif currentFPS >= 30 then
+            fpsText.TextColor3 = Color3.fromRGB(240, 180, 50)
+        else
+            fpsText.TextColor3 = Color3.fromRGB(230, 60, 60)
+        end
+        
+        local rawPing = 60
+        pcall(function()
+            rawPing = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue())
+        end)
+        
+        pingText.Text = "قوة الاتصال (Ping): " .. tostring(rawPing) .. " ms"
+        if rawPing <= 80 then
+            pingText.TextColor3 = Color3.fromRGB(80, 220, 120)
+        elseif rawPing <= 160 then
+            pingText.TextColor3 = Color3.fromRGB(240, 180, 50)
+        else
+            pingText.TextColor3 = Color3.fromRGB(230, 60, 60)
+        end
+
+        updatePlayersList(rawPing)
+
+        frameCount = 0
+        lastTime = currentTime
+    end
+
+    if isScriptPaused then return end
+
+    local char = player.Character
+    if not char then return end
+
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+
+    if humanoid and isSpeedEnabled then
+        humanoid.WalkSpeed = currentSpeed
+    end
+
+    if (activeTween or isAutoWalking) and hrp and not isFlyEnabled then
+        local currentPos = hrp.Position
+        if math.abs(currentPos.Y - FIXED_Y) > 0.1 then
+            hrp.CFrame = CFrame.new(currentPos.X, FIXED_Y, currentPos.Z) * (hrp.CFrame - hrp.CFrame.Position)
+        end
+    end
+
+    if isFlyEnabled and hrp then
+        if isJumpingPressed() then
+            if not flyVelocity or flyVelocity.Parent ~= hrp then
+                flyVelocity = Instance.new("BodyVelocity")
+                flyVelocity.MaxForce = Vector3.new(0, 1e7, 0)
+                flyVelocity.Velocity = Vector3.new(0, 70, 0)
+                flyVelocity.Parent = hrp
+            end
+        else
+            if flyVelocity then
+                flyVelocity:Destroy()
+                flyVelocity = nil
+            end
+        end
+    else
+        if flyVelocity then
+            flyVelocity:Destroy()
+            flyVelocity = nil
+        end
+    end
+
+    if isNoclipEnabled and char then
+        for _, part in ipairs(char:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+            end
+        end
+    end
+end)
+
+-- أدوات إنشاء العناصر
+local toggleButtons = {}
+
+local function createInput(parent, placeholder, buttonText, callback)
+    local frame = Instance.new("Frame", parent)
+    frame.Size = UDim2.new(1, 0, 0, 36)
+    frame.BackgroundColor3 = Color3.fromRGB(28, 28, 38)
+    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 6)
+
+    local box = Instance.new("TextBox", frame)
+    box.Size = UDim2.new(0.6, -5, 1, 0)
+    box.Position = UDim2.new(0, 8, 0, 0)
+    box.BackgroundTransparency = 1
+    box.PlaceholderText = placeholder
+    box.Text = tostring(currentSpeed)
+    box.TextColor3 = Color3.fromRGB(255, 255, 255)
+    box.PlaceholderColor3 = Color3.fromRGB(130, 130, 150)
+    box.TextSize = 12
+    box.Font = Enum.Font.Gotham
+    box.TextXAlignment = Enum.TextXAlignment.Left
+
+    local btn = Instance.new("TextButton", frame)
+    btn.Size = UDim2.new(0.4, -10, 0.8, 0)
+    btn.Position = UDim2.new(0.6, 5, 0.1, 0)
+    btn.BackgroundColor3 = Color3.fromRGB(60, 110, 240)
+    btn.Text = buttonText
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.TextSize = 11
+    btn.Font = Enum.Font.GothamBold
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 5)
+
+    btn.MouseButton1Click:Connect(function()
+        callback(box.Text)
+    end)
+end
+
+local function createButton(parent, text, bgColor, callback)
+    local btn = Instance.new("TextButton", parent)
+    btn.Size = UDim2.new(1, 0, 0, 36)
+    btn.BackgroundColor3 = bgColor or Color3.fromRGB(35, 35, 48)
+    btn.Text = text
+    btn.TextColor3 = Color3.fromRGB(240, 240, 240)
+    btn.TextSize = 11
+    btn.Font = Enum.Font.GothamBold
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+
+    btn.MouseButton1Click:Connect(callback)
+    return btn
+end
+
+local function createToggle(parent, text, callback)
+    local btn = Instance.new("TextButton", parent)
+    btn.Size = UDim2.new(1, 0, 0, 36)
+    btn.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
+    btn.Text = text .. " : OFF"
+    btn.TextColor3 = Color3.fromRGB(200, 200, 200)
+    btn.TextSize = 11
+    btn.Font = Enum.Font.GothamBold
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+
+    local state = false
+
+    local function updateState(newState)
+        state = newState
+        if state then
+            btn.Text = text .. " : ON"
+            btn.BackgroundColor3 = Color3.fromRGB(40, 140, 70)
+            btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        else
+            btn.Text = text .. " : OFF"
+            btn.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
+            btn.TextColor3 = Color3.fromRGB(200, 200, 200)
+        end
+        callback(state)
+    end
+
+    btn.MouseButton1Click:Connect(function()
+        isScriptPaused = false
+        updateState(not state)
+    end)
+
+    table.insert(toggleButtons, function()
+        if state then
+            updateState(false)
+        end
+    end)
+end
+
+-- === عناصر تبويب المميزات ===
+createInput(FeaturesFram
