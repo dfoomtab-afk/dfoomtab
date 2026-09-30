@@ -1,0 +1,1579 @@
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Lighting = game:GetService("Lighting")
+local Players = game:GetService("Players")
+local Stats = game:GetService("Stats")
+local Debris = game:GetService("Debris")
+local SoundService = game:GetService("SoundService")
+
+local player = Players.LocalPlayer
+local parentGui
+
+local success, coreGui = pcall(function()
+    return game:GetService("CoreGui")
+end)
+
+if success and coreGui then
+    pcall(function()
+        local test = Instance.new("Folder")
+        test.Parent = coreGui
+        test:Destroy()
+        parentGui = coreGui
+    end)
+end
+
+if not parentGui then
+    parentGui = player:WaitForChild("PlayerGui")
+end
+
+local function PatchTraps()
+    local trapNames = { "MeteorTrap", "Tsunami1" , "G2W1_NPC1", "LavaTower" }
+    task.spawn(function()
+        while task.wait(0.5) do
+            local traps = game:GetService("Workspace"):FindFirstChild("Traps")
+            if traps then
+                for _, name in ipairs(trapNames) do
+                    local trap = traps:FindFirstChild(name)
+                    if trap then
+                        pcall(function()
+                            trap:Destroy()
+                        end)
+                    end
+                end
+            end
+        end
+    end)
+end
+
+PatchTraps()
+
+local existing = parentGui:FindFirstChild("ZenithStudio")
+if existing then existing:Destroy() end
+
+local existingOld = parentGui:FindFirstChild("ZenithStudio")
+if existingOld then existingOld:Destroy() end
+
+local existingBlur = Lighting:FindFirstChild("ZenithBlur")
+if existingBlur then existingBlur:Destroy() end
+
+local THEME = {
+    WindowGlass = Color3.fromRGB(10, 12, 18),
+    GlassTrans = 0.12,
+    CardGlass = Color3.fromRGB(18, 22, 33),
+    CardTrans = 0.35,
+    CardStroke = Color3.fromRGB(42, 48, 68),
+    SidebarGlass = Color3.fromRGB(7, 9, 14),
+    SidebarTrans = 0.20,
+    NeonCyan = Color3.fromRGB(0, 255, 120), -- تم التعديل إلى أخضر نيون
+    NeonPurple = Color3.fromRGB(160, 85, 255),
+    NeonPink = Color3.fromRGB(255, 75, 155),
+    Success = Color3.fromRGB(45, 225, 140),
+    Warning = Color3.fromRGB(255, 185, 45),
+    Danger = Color3.fromRGB(255, 75, 90),
+    TextPrimary = Color3.fromRGB(245, 248, 255),
+    TextSecondary = Color3.fromRGB(150, 158, 182),
+    TextMuted = Color3.fromRGB(95, 103, 128),
+}
+
+local SOUNDS = {
+    Click = "rbxassetid://6895079853",
+    Toggle = "rbxassetid://6895079683",
+    Notif = "rbxassetid://4590657391",
+    Tab = "rbxassetid://6895079774",
+}
+
+local function PlaySound(soundId, volume)
+    task.spawn(function()
+        pcall(function()
+            local snd = Instance.new("Sound")
+            snd.SoundId = soundId
+            snd.Volume = volume or 0.35
+            snd.Parent = SoundService
+            snd:Play()
+            Debris:AddItem(snd, 2)
+        end)
+    end)
+end
+
+local blur = Instance.new("BlurEffect")
+blur.Name = "ZenithBlur"
+blur.Size = 8
+blur.Enabled = false
+blur.Parent = Lighting
+local blurPref = false
+
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "ZenithStudio"
+screenGui.ResetOnSpawn = false
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+screenGui.Parent = parentGui
+
+local watermark = Instance.new("Frame")
+watermark.Name = "Watermark"
+watermark.Size = UDim2.new(0, 310, 0, 32)
+watermark.Position = UDim2.new(0, 24, 0, 24)
+watermark.BackgroundColor3 = THEME.WindowGlass
+watermark.BackgroundTransparency = 0.20
+watermark.BorderSizePixel = 0
+watermark.Parent = screenGui
+
+local wmCorner = Instance.new("UICorner")
+wmCorner.CornerRadius = UDim.new(0, 8)
+wmCorner.Parent = watermark
+
+local wmStroke = Instance.new("UIStroke")
+wmStroke.Color = Color3.fromRGB(255, 255, 255)
+wmStroke.Transparency = 0.88
+wmStroke.Thickness = 1
+wmStroke.Parent = watermark
+
+local wmDot = Instance.new("Frame")
+wmDot.Size = UDim2.new(0, 7, 0, 7)
+wmDot.Position = UDim2.new(0, 10, 0.5, -3)
+wmDot.BackgroundColor3 = THEME.NeonCyan
+wmDot.BorderSizePixel = 0
+wmDot.Parent = watermark
+
+local wmDotCorner = Instance.new("UICorner")
+wmDotCorner.CornerRadius = UDim.new(1, 0)
+wmDotCorner.Parent = wmDot
+
+local wmLabel = Instance.new("TextLabel")
+wmLabel.Size = UDim2.new(1, -26, 1, 0)
+wmLabel.Position = UDim2.new(0, 24, 0, 0)
+wmLabel.BackgroundTransparency = 1
+wmLabel.Font = Enum.Font.GothamMedium
+wmLabel.TextSize = 12
+wmLabel.TextColor3 = THEME.TextPrimary
+wmLabel.RichText = true
+wmLabel.TextXAlignment = Enum.TextXAlignment.Left
+wmLabel.Text = "<b>ZENITH</b> <font color=\"rgb(0,255,120)\">STUDIO</font> | 60 FPS | 0ms"
+wmLabel.Parent = watermark
+
+local frameCount = 0
+local lastFpsUpdate = tick()
+local currentFps = 60
+
+RunService.RenderStepped:Connect(function()
+    frameCount = frameCount + 1
+    local now = tick()
+    if now - lastFpsUpdate >= 0.5 then
+        currentFps = math.floor(frameCount / (now - lastFpsUpdate))
+        frameCount = 0
+        lastFpsUpdate = now
+        local ping = 0
+        pcall(function()
+            ping = math.floor(player:GetNetworkPing() * 1000)
+        end)
+        local mem = math.floor(Stats:GetTotalMemoryUsageMb())
+        wmLabel.Text = string.format(
+            "<b>ZENITH</b> <font color=\"rgb(0,255,120)\">STUDIO</font> | <font color=\"rgb(160,85,255)\">%d FPS</font> | <font color=\"rgb(0,255,120)\">%dms</font> | <font color=\"rgb(150,158,182)\">%dMB</font>",
+            currentFps, ping, mem
+        )
+    end
+end)
+
+local wmDragging = false
+local wmDragStart, wmStartPos
+
+watermark.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        wmDragging = true
+        wmDragStart = input.Position
+        wmStartPos = watermark.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                wmDragging = false
+            end
+        end)
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if wmDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - wmDragStart
+        watermark.Position = UDim2.new(wmStartPos.X.Scale, wmStartPos.X.Offset + delta.X, wmStartPos.Y.Scale, wmStartPos.Y.Offset + delta.Y)
+    end
+end)
+
+local notifContainer = Instance.new("Frame")
+notifContainer.Name = "NotifContainer"
+notifContainer.Size = UDim2.new(0, 320, 1, -60)
+notifContainer.Position = UDim2.new(1, -340, 0, 30)
+notifContainer.BackgroundTransparency = 1
+notifContainer.Parent = screenGui
+
+local notifLayout = Instance.new("UIListLayout")
+notifLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom
+notifLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
+notifLayout.Padding = UDim.new(0, 10)
+notifLayout.Parent = notifContainer
+
+local function Notify(titleText, descText, duration, notifType)
+    duration = duration or 3.5
+    notifType = notifType or "Info"
+    PlaySound(SOUNDS.Notif, 0.4)
+    local typeColors = {
+        Success = THEME.Success,
+        Warning = THEME.Warning,
+        Danger = THEME.Danger,
+        Info = THEME.NeonCyan,
+    }
+    local accentColor = typeColors[notifType] or THEME.NeonCyan
+
+    local card = Instance.new("Frame")
+    card.Size = UDim2.new(1, 0, 0, 68)
+    card.Position = UDim2.new(1, 100, 0, 0)
+    card.BackgroundColor3 = THEME.WindowGlass
+    card.BackgroundTransparency = 0.12
+    card.ClipsDescendants = true
+    card.Parent = notifContainer
+
+    local cardCorner = Instance.new("UICorner")
+    cardCorner.CornerRadius = UDim.new(0, 10)
+    cardCorner.Parent = card
+
+    local cardStroke = Instance.new("UIStroke")
+    cardStroke.Color = accentColor
+    cardStroke.Transparency = 0.45
+    cardStroke.Thickness = 1.4
+    cardStroke.Parent = card
+
+    local glowBar = Instance.new("Frame")
+    glowBar.Size = UDim2.new(0, 4, 1, 0)
+    glowBar.BackgroundColor3 = accentColor
+    glowBar.BorderSizePixel = 0
+    glowBar.Parent = card
+
+    local tLabel = Instance.new("TextLabel")
+    tLabel.Size = UDim2.new(1, -26, 0, 22)
+    tLabel.Position = UDim2.new(0, 16, 0, 10)
+    tLabel.BackgroundTransparency = 1
+    tLabel.Font = Enum.Font.GothamBold
+    tLabel.TextSize = 13
+    tLabel.TextColor3 = accentColor
+    tLabel.TextXAlignment = Enum.TextXAlignment.Left
+    tLabel.Text = titleText
+    tLabel.Parent = card
+
+    local dLabel = Instance.new("TextLabel")
+    dLabel.Size = UDim2.new(1, -26, 0, 26)
+    dLabel.Position = UDim2.new(0, 16, 0, 32)
+    dLabel.BackgroundTransparency = 1
+    dLabel.Font = Enum.Font.Gotham
+    dLabel.TextSize = 12
+    dLabel.TextColor3 = THEME.TextSecondary
+    dLabel.TextXAlignment = Enum.TextXAlignment.Left
+    dLabel.TextWrapped = true
+    dLabel.Text = descText
+    dLabel.Parent = card
+
+    local bar = Instance.new("Frame")
+    bar.Size = UDim2.new(1, 0, 0, 3)
+    bar.Position = UDim2.new(0, 0, 1, -3)
+    bar.BackgroundColor3 = accentColor
+    bar.BorderSizePixel = 0
+    bar.Parent = card
+
+    card.Position = UDim2.new(1, 80, 0, 0)
+    TweenService:Create(card, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Position = UDim2.new(0, 0, 0, 0)}):Play()
+    TweenService:Create(bar, TweenInfo.new(duration, Enum.EasingStyle.Linear), {Size = UDim2.new(0, 0, 0, 3)}):Play()
+
+    local hitDismiss = Instance.new("TextButton")
+    hitDismiss.Size = UDim2.new(1, 0, 1, 0)
+    hitDismiss.BackgroundTransparency = 1
+    hitDismiss.Text = ""
+    hitDismiss.Parent = card
+
+    local dismissed = false
+    local function dismiss()
+        if dismissed then return end
+        dismissed = true
+        local out = TweenService:Create(card, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+            Position = UDim2.new(1, 100, 0, 0),
+            BackgroundTransparency = 1
+        })
+        out:Play()
+        out.Completed:Connect(function()
+            card:Destroy()
+        end)
+    end
+
+    hitDismiss.MouseButton1Click:Connect(dismiss)
+    task.delay(duration, dismiss)
+end
+
+local WINDOW_W = 740
+local WINDOW_H = 480
+local TOPBAR_H = 50
+local SIDEBAR_W = 185
+
+local mainWindow = Instance.new("Frame")
+mainWindow.Name = "MainWindow"
+mainWindow.AnchorPoint = Vector2.new(0.5, 0.5)
+mainWindow.Size = UDim2.new(0, WINDOW_W, 0, WINDOW_H)
+mainWindow.Position = UDim2.new(0.5, 0, 0.5, 0)
+mainWindow.BackgroundColor3 = THEME.WindowGlass
+mainWindow.BackgroundTransparency = THEME.GlassTrans
+mainWindow.BorderSizePixel = 0
+mainWindow.ClipsDescendants = true
+mainWindow.Parent = screenGui
+
+pcall(function()
+    local vpSize = Vector2.new(1920, 1080)
+    local cam = workspace.CurrentCamera
+    if cam then vpSize = cam.ViewportSize end
+    local scale = math.clamp(math.min(vpSize.X / 1500, vpSize.Y / 900), 0.6, 1.1)
+    if scale ~= 1 then
+        local uiScale = Instance.new("UIScale")
+        uiScale.Scale = scale
+        uiScale.Parent = mainWindow
+    end
+end)
+
+local windowCorner = Instance.new("UICorner")
+windowCorner.CornerRadius = UDim.new(0, 14)
+windowCorner.Parent = mainWindow
+
+local windowStroke = Instance.new("UIStroke")
+windowStroke.Thickness = 2
+windowStroke.Color = Color3.fromRGB(255, 255, 255)
+windowStroke.Parent = mainWindow
+
+local borderGradient = Instance.new("UIGradient")
+borderGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0.0, THEME.NeonPurple),
+    ColorSequenceKeypoint.new(0.35, THEME.NeonCyan),
+    ColorSequenceKeypoint.new(0.70, THEME.NeonPink),
+    ColorSequenceKeypoint.new(1.0, THEME.NeonPurple),
+})
+borderGradient.Rotation = 45
+borderGradient.Parent = windowStroke
+
+local rotAngle = 0
+local rotConn = RunService.RenderStepped:Connect(function(dt)
+    rotAngle = (rotAngle + (dt * 45)) % 360
+    borderGradient.Rotation = rotAngle
+end)
+
+mainWindow.Destroying:Connect(function()
+    rotConn:Disconnect()
+    if blur then blur:Destroy() end
+end)
+
+local sheen = Instance.new("Frame")
+sheen.Size = UDim2.new(1, 0, 0, 110)
+sheen.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+sheen.BorderSizePixel = 0
+sheen.Parent = mainWindow
+
+local sheenGrad = Instance.new("UIGradient")
+sheenGrad.Transparency = NumberSequence.new({
+    NumberSequenceKeypoint.new(0, 0.93),
+    NumberSequenceKeypoint.new(0.35, 0.98),
+    NumberSequenceKeypoint.new(1, 1),
+})
+sheenGrad.Rotation = 90
+sheenGrad.Parent = sheen
+
+local topBar = Instance.new("Frame")
+topBar.Name = "TopBar"
+topBar.Size = UDim2.new(1, 0, 0, TOPBAR_H)
+topBar.BackgroundTransparency = 1
+topBar.Parent = mainWindow
+
+local brandContainer = Instance.new("Frame")
+brandContainer.Size = UDim2.new(0, 240, 1, 0)
+brandContainer.Position = UDim2.new(0, 18, 0, 0)
+brandContainer.BackgroundTransparency = 1
+brandContainer.Parent = topBar
+
+local brandLogo = Instance.new("TextLabel")
+brandLogo.Size = UDim2.new(0, 32, 0, 32)
+brandLogo.Position = UDim2.new(0, 0, 0.5, -16)
+brandLogo.BackgroundColor3 = THEME.CardGlass
+brandLogo.BackgroundTransparency = 0.2
+brandLogo.Text = "⚡"
+brandLogo.TextSize = 16
+brandLogo.TextColor3 = THEME.NeonCyan
+brandLogo.Font = Enum.Font.GothamBold
+brandLogo.Parent = brandContainer
+
+local brandLogoCorner = Instance.new("UICorner")
+brandLogoCorner.CornerRadius = UDim.new(0, 8)
+brandLogoCorner.Parent = brandLogo
+
+local brandLogoStroke = Instance.new("UIStroke")
+brandLogoStroke.Color = THEME.NeonCyan
+brandLogoStroke.Transparency = 0.5
+brandLogoStroke.Thickness = 1
+brandLogoStroke.Parent = brandLogo
+
+local brandTitle = Instance.new("TextLabel")
+brandTitle.Size = UDim2.new(1, -40, 1, 0)
+brandTitle.Position = UDim2.new(0, 40, 0, 0)
+brandTitle.Text = "<b>ZENITH</b> <font color=\"rgb(0,255,120)\">STUDIO</font> <font color=\"rgb(160,85,255)\">v4.0</font>"
+brandTitle.RichText = true
+brandTitle.TextColor3 = THEME.TextPrimary
+brandTitle.TextSize = 14
+brandTitle.Font = Enum.Font.Gotham
+brandTitle.TextXAlignment = Enum.TextXAlignment.Left
+brandTitle.BackgroundTransparency = 1
+brandTitle.Parent = brandContainer
+
+local sessionBadge = Instance.new("Frame")
+sessionBadge.Size = UDim2.new(0, 120, 0, 26)
+sessionBadge.Position = UDim2.new(0, 270, 0.5, -13)
+sessionBadge.BackgroundColor3 = THEME.CardGlass
+sessionBadge.BackgroundTransparency = 0.4
+sessionBadge.BorderSizePixel = 0
+sessionBadge.Parent = topBar
+
+local sbCorner = Instance.new("UICorner")
+sbCorner.CornerRadius = UDim.new(0, 6)
+sbCorner.Parent = sessionBadge
+
+local sbStroke = Instance.new("UIStroke")
+sbStroke.Color = THEME.CardStroke
+sbStroke.Transparency = 0.6
+sbStroke.Thickness = 1
+sbStroke.Parent = sessionBadge
+
+local sbDot = Instance.new("Frame")
+sbDot.Size = UDim2.new(0, 6, 0, 6)
+sbDot.Position = UDim2.new(0, 10, 0.5, -3)
+sbDot.BackgroundColor3 = THEME.Success
+sbDot.BorderSizePixel = 0
+sbDot.Parent = sessionBadge
+
+local sbDotCorner = Instance.new("UICorner")
+sbDotCorner.CornerRadius = UDim.new(1, 0)
+sbDotCorner.Parent = sbDot
+
+local sbText = Instance.new("TextLabel")
+sbText.Size = UDim2.new(1, -22, 1, 0)
+sbText.Position = UDim2.new(0, 20, 0, 0)
+sbText.BackgroundTransparency = 1
+sbText.Font = Enum.Font.GothamMedium
+sbText.TextSize = 11
+sbText.TextColor3 = THEME.TextSecondary
+sbText.TextXAlignment = Enum.TextXAlignment.Left
+sbText.Text = "Uptime: 00:00"
+sbText.Parent = sessionBadge
+
+local startTime = tick()
+
+RunService.Heartbeat:Connect(function()
+    local elapsed = math.floor(tick() - startTime)
+    local mins = math.floor(elapsed / 60)
+    local secs = elapsed % 60
+    sbText.Text = string.format("Uptime: %02d:%02d", mins, secs)
+end)
+
+local isMinimized = false
+local normalSize = UDim2.new(0, WINDOW_W, 0, WINDOW_H)
+local minSize = UDim2.new(0, WINDOW_W, 0, TOPBAR_H)
+
+local minBtn = Instance.new("TextButton")
+minBtn.Size = UDim2.new(0, 30, 0, 30)
+minBtn.Position = UDim2.new(1, -78, 0.5, -15)
+minBtn.BackgroundColor3 = Color3.fromRGB(30, 34, 48)
+minBtn.BackgroundTransparency = 0.3
+minBtn.Text = ""
+minBtn.AutoButtonColor = false
+minBtn.Parent = topBar
+
+local minCorner = Instance.new("UICorner")
+minCorner.CornerRadius = UDim.new(0, 8)
+minCorner.Parent = minBtn
+
+local minLine = Instance.new("Frame")
+minLine.Size = UDim2.new(0, 11, 0, 2)
+minLine.Position = UDim2.new(0.5, 0, 0.5, 0)
+minLine.AnchorPoint = Vector2.new(0.5, 0.5)
+minLine.BackgroundColor3 = THEME.TextSecondary
+minLine.BorderSizePixel = 0
+minLine.Parent = minBtn
+
+minBtn.MouseEnter:Connect(function()
+    TweenService:Create(minBtn, TweenInfo.new(0.15), {BackgroundColor3 = THEME.CardStroke}):Play()
+    TweenService:Create(minLine, TweenInfo.new(0.15), {BackgroundColor3 = THEME.TextPrimary}):Play()
+end)
+
+minBtn.MouseLeave:Connect(function()
+    TweenService:Create(minBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(30, 34, 48)}):Play()
+    TweenService:Create(minLine, TweenInfo.new(0.15), {BackgroundColor3 = THEME.TextSecondary}):Play()
+end)
+
+minBtn.MouseButton1Click:Connect(function()
+    PlaySound(SOUNDS.Click, 0.3)
+    isMinimized = not isMinimized
+    local target = isMinimized and minSize or normalSize
+    TweenService:Create(mainWindow, TweenInfo.new(0.35, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Size = target}):Play()
+end)
+
+local closeBtn = Instance.new("TextButton")
+closeBtn.Size = UDim2.new(0, 30, 0, 30)
+closeBtn.Position = UDim2.new(1, -42, 0.5, -15)
+closeBtn.BackgroundColor3 = Color3.fromRGB(30, 34, 48)
+closeBtn.BackgroundTransparency = 0.3
+closeBtn.Text = ""
+closeBtn.AutoButtonColor = false
+closeBtn.Parent = topBar
+
+local closeCorner = Instance.new("UICorner")
+closeCorner.CornerRadius = UDim.new(0, 8)
+closeCorner.Parent = closeBtn
+
+local xLine1 = Instance.new("Frame")
+xLine1.Size = UDim2.new(0, 12, 0, 2)
+xLine1.Position = UDim2.new(0.5, 0, 0.5, 0)
+xLine1.AnchorPoint = Vector2.new(0.5, 0.5)
+xLine1.Rotation = 45
+xLine1.BackgroundColor3 = THEME.TextSecondary
+xLine1.BorderSizePixel = 0
+xLine1.Parent = closeBtn
+
+local xLine2 = Instance.new("Frame")
+xLine2.Size = UDim2.new(0, 12, 0, 2)
+xLine2.Position = UDim2.new(0.5, 0, 0.5, 0)
+xLine2.AnchorPoint = Vector2.new(0.5, 0.5)
+xLine2.Rotation = -45
+xLine2.BackgroundColor3 = THEME.TextSecondary
+xLine2.BorderSizePixel = 0
+xLine2.Parent = closeBtn
+
+closeBtn.MouseEnter:Connect(function()
+    TweenService:Create(closeBtn, TweenInfo.new(0.15), {BackgroundColor3 = THEME.Danger, BackgroundTransparency = 0.1}):Play()
+    TweenService:Create(xLine1, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(255, 255, 255)}):Play()
+    TweenService:Create(xLine2, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(255, 255, 255)}):Play()
+end)
+
+closeBtn.MouseLeave:Connect(function()
+    TweenService:Create(closeBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(30, 34, 48), BackgroundTransparency = 0.3}):Play()
+    TweenService:Create(xLine1, TweenInfo.new(0.15), {BackgroundColor3 = THEME.TextSecondary}):Play()
+    TweenService:Create(xLine2, TweenInfo.new(0.15), {BackgroundColor3 = THEME.TextSecondary}):Play()
+end)
+
+closeBtn.MouseButton1Click:Connect(function()
+    PlaySound(SOUNDS.Click, 0.4)
+    mainWindow.Visible = false
+    if blur then blur.Enabled = false end
+    if updateMobileButton then updateMobileButton() end
+end)
+
+local isDragging = false
+local dragStart, startPos, dragInput
+
+topBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        isDragging = true
+        dragStart = input.Position
+        startPos = mainWindow.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                isDragging = false
+            end
+        end)
+    end
+end)
+
+topBar.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        dragInput = input
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and isDragging then
+        local delta = input.Position - dragStart
+        local target = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        TweenService:Create(mainWindow, TweenInfo.new(0.06, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = target}):Play()
+    end
+end)
+
+local updateMobileButton = function() end
+
+pcall(function()
+    local mobileButton = Instance.new("TextButton")
+    mobileButton.Name = "MobileButton"
+    mobileButton.Size = UDim2.new(0, 58, 0, 58)
+    mobileButton.AnchorPoint = Vector2.new(0, 0)
+    mobileButton.Position = UDim2.new(0.1, 0, 0.18, 0)
+    mobileButton.BackgroundColor3 = Color3.fromRGB(18, 22, 33)
+    mobileButton.BackgroundTransparency = 0.35
+    mobileButton.AutoButtonColor = false
+    mobileButton.Font = Enum.Font.GothamBold
+    mobileButton.TextSize = 26
+    mobileButton.TextColor3 = Color3.fromRGB(245, 248, 255)
+    mobileButton.ZIndex = 700
+    mobileButton.Parent = screenGui
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 14)
+    corner.Parent = mobileButton
+
+    local stroke = Instance.new("UIStroke")
+    stroke.Thickness = 1.5
+    stroke.Color = Color3.fromRGB(42, 48, 68)
+    stroke.Transparency = 0.5
+    stroke.Parent = mobileButton
+
+    local gradient = Instance.new("UIGradient")
+    gradient.Rotation = 45
+    gradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0.0, Color3.fromRGB(160, 85, 255)),
+        ColorSequenceKeypoint.new(0.35, Color3.fromRGB(0, 255, 120)), -- تم التعديل إلى أخضر
+        ColorSequenceKeypoint.new(0.70, Color3.fromRGB(255, 75, 155)),
+        ColorSequenceKeypoint.new(1.0, Color3.fromRGB(160, 85, 255))
+    })
+    gradient.Parent = stroke
+
+    updateMobileButton = function()
+        mobileButton.Visible = true
+        mobileButton.Text = mainWindow.Visible and "×" or "⚡"
+    end
+
+    local isBtnDragging = false
+    local btnMoved = false
+    local btnDragStart, btnStartPos, btnDragInput
+
+    mobileButton.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            isBtnDragging = true
+            btnMoved = false
+            btnDragStart = input.Position
+            btnStartPos = mobileButton.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    isBtnDragging = false
+                end
+            end)
+        end
+    end)
+
+    mobileButton.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            btnDragInput = input
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if input == btnDragInput and isBtnDragging then
+            local delta = input.Position - btnDragStart
+            if not btnMoved and delta.Magnitude > 8 then
+                btnMoved = true
+            end
+            mobileButton.Position = UDim2.fromOffset(btnStartPos.X.Offset + delta.X, btnStartPos.Y.Offset + delta.Y)
+        end
+    end)
+
+    mobileButton.Activated:Connect(function()
+        if btnMoved then
+            btnMoved = false
+            return
+        end
+        mainWindow.Visible = not mainWindow.Visible
+        if blur then blur.Enabled = mainWindow.Visible and blurPref end
+        Notify("Menu Visibility", mainWindow.Visible and "Menu Opened" or "Menu Hidden", 2, "Info")
+        updateMobileButton()
+    end)
+
+    updateMobileButton()
+end)
+
+local toggleKey = Enum.KeyCode.RightControl
+UserInputService.InputBegan:Connect(function(input, processed)
+    if not processed and input.KeyCode == toggleKey then
+        mainWindow.Visible = not mainWindow.Visible
+        if blur then blur.Enabled = mainWindow.Visible and blurPref end
+        Notify("Menu Visibility", mainWindow.Visible and "Menu Opened" or "Menu Hidden (" .. toggleKey.Name .. ")", 2, "Info")
+        if updateMobileButton then updateMobileButton() end
+    end
+end)
+
+local topDivider = Instance.new("Frame")
+topDivider.Size = UDim2.new(1, 0, 0, 1)
+topDivider.Position = UDim2.new(0, 0, 0, TOPBAR_H)
+topDivider.BackgroundColor3 = THEME.CardStroke
+topDivider.BackgroundTransparency = 0.5
+topDivider.BorderSizePixel = 0
+topDivider.Parent = mainWindow
+
+local sidebar = Instance.new("Frame")
+sidebar.Name = "Sidebar"
+sidebar.Size = UDim2.new(0, SIDEBAR_W, 1, -TOPBAR_H - 1)
+sidebar.Position = UDim2.new(0, 0, 0, TOPBAR_H + 1)
+sidebar.BackgroundColor3 = THEME.SidebarGlass
+sidebar.BackgroundTransparency = THEME.SidebarTrans
+sidebar.BorderSizePixel = 0
+sidebar.Parent = mainWindow
+
+local sideDivider = Instance.new("Frame")
+sideDivider.Size = UDim2.new(0, 1, 1, 0)
+sideDivider.Position = UDim2.new(1, -1, 0, 0)
+sideDivider.BackgroundColor3 = THEME.CardStroke
+sideDivider.BackgroundTransparency = 0.5
+sideDivider.BorderSizePixel = 0
+sideDivider.Parent = sidebar
+
+local indicator = Instance.new("Frame")
+indicator.Name = "Indicator"
+indicator.Size = UDim2.new(0, 4, 0, 24)
+indicator.Position = UDim2.new(0, 4, 0, 18)
+indicator.BackgroundColor3 = THEME.NeonCyan
+indicator.BorderSizePixel = 0
+indicator.Parent = sidebar
+
+local indCorner = Instance.new("UICorner")
+indCorner.CornerRadius = UDim.new(1, 0)
+indCorner.Parent = indicator
+
+local tabScroll = Instance.new("ScrollingFrame")
+tabScroll.Name = "TabScroll"
+tabScroll.Size = UDim2.new(1, 0, 1, -72)
+tabScroll.Position = UDim2.new(0, 0, 0, 0)
+tabScroll.BackgroundTransparency = 1
+tabScroll.BorderSizePixel = 0
+tabScroll.ScrollBarThickness = 0
+tabScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+tabScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+tabScroll.Parent = sidebar
+
+local sidebarLayout = Instance.new("UIListLayout")
+sidebarLayout.Padding = UDim.new(0, 6)
+sidebarLayout.SortOrder = Enum.SortOrder.LayoutOrder
+sidebarLayout.Parent = tabScroll
+
+local sidebarPadding = Instance.new("UIPadding")
+sidebarPadding.PaddingTop = UDim.new(0, 12)
+sidebarPadding.PaddingLeft = UDim.new(0, 12)
+sidebarPadding.PaddingRight = UDim.new(0, 12)
+sidebarPadding.Parent = tabScroll
+
+local profileCard = Instance.new("Frame")
+profileCard.Name = "ProfileCard"
+profileCard.Size = UDim2.new(1, -18, 0, 56)
+profileCard.Position = UDim2.new(0, 9, 1, -64)
+profileCard.BackgroundColor3 = THEME.CardGlass
+profileCard.BackgroundTransparency = 0.4
+profileCard.BorderSizePixel = 0
+profileCard.Parent = sidebar
+
+local pcCorner = Instance.new("UICorner")
+pcCorner.CornerRadius = UDim.new(0, 10)
+pcCorner.Parent = profileCard
+
+local pcStroke = Instance.new("UIStroke")
+pcStroke.Color = THEME.CardStroke
+pcStroke.Transparency = 0.6
+pcStroke.Thickness = 1
+pcStroke.Parent = profileCard
+
+local avatarImg = Instance.new("ImageLabel")
+avatarImg.Size = UDim2.new(0, 36, 0, 36)
+avatarImg.Position = UDim2.new(0, 8, 0.5, -18)
+avatarImg.BackgroundColor3 = Color3.fromRGB(25, 28, 40)
+avatarImg.BackgroundTransparency = 0.3
+avatarImg.Parent = profileCard
+
+local avCorner = Instance.new("UICorner")
+avCorner.CornerRadius = UDim.new(1, 0)
+avCorner.Parent = avatarImg
+
+task.spawn(function()
+    pcall(function()
+        local thumb = Players:GetUserThumbnailAsync(player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100)
+        avatarImg.Image = thumb
+    end)
+end)
+
+local userDisplayName = Instance.new("TextLabel")
+userDisplayName.Size = UDim2.new(1, -52, 0, 16)
+userDisplayName.Position = UDim2.new(0, 50, 0, 11)
+userDisplayName.BackgroundTransparency = 1
+userDisplayName.Font = Enum.Font.GothamBold
+userDisplayName.TextSize = 12
+userDisplayName.TextColor3 = THEME.TextPrimary
+userDisplayName.TextXAlignment = Enum.TextXAlignment.Left
+userDisplayName.TextTruncate = Enum.TextTruncate.AtEnd
+userDisplayName.Text = player.DisplayName
+userDisplayName.Parent = profileCard
+
+local userTag = Instance.new("TextLabel")
+userTag.Size = UDim2.new(1, -52, 0, 14)
+userTag.Position = UDim2.new(0, 50, 0, 28)
+userTag.BackgroundTransparency = 1
+userTag.Font = Enum.Font.Gotham
+userTag.TextSize = 10
+userTag.TextColor3 = THEME.NeonCyan
+userTag.TextXAlignment = Enum.TextXAlignment.Left
+userTag.Text = "[VIP / STUDIO]"
+userTag.Parent = profileCard
+
+local contentArea = Instance.new("Frame")
+contentArea.Name = "ContentArea"
+contentArea.Size = UDim2.new(1, -SIDEBAR_W, 1, -TOPBAR_H - 1)
+contentArea.Position = UDim2.new(0, SIDEBAR_W, 0, TOPBAR_H + 1)
+contentArea.BackgroundTransparency = 1
+contentArea.Parent = mainWindow
+
+local tabs = {}
+local tabOrder = 0
+
+local function CreateRipple(parentButton)
+    task.spawn(function()
+        local ripple = Instance.new("Frame")
+        ripple.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        ripple.BackgroundTransparency = 0.7
+        ripple.BorderSizePixel = 0
+        ripple.AnchorPoint = Vector2.new(0.5, 0.5)
+        ripple.Position = UDim2.new(0.5, 0, 0.5, 0)
+        ripple.Size = UDim2.new(0, 0, 0, 0)
+        ripple.ZIndex = parentButton.ZIndex + 1
+        ripple.Parent = parentButton
+
+        local rCorner = Instance.new("UICorner")
+        rCorner.CornerRadius = UDim.new(1, 0)
+        rCorner.Parent = ripple
+
+        local maxSize = math.max(parentButton.AbsoluteSize.X, parentButton.AbsoluteSize.Y) * 1.6
+        local tw = TweenService:Create(ripple, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            Size = UDim2.new(0, maxSize, 0, maxSize),
+            BackgroundTransparency = 1
+        })
+        tw:Play()
+        tw.Completed:Connect(function()
+            ripple:Destroy()
+        end)
+    end)
+end
+
+local function createTab(tabName, iconText)
+    tabOrder = tabOrder + 1
+    local myOrder = tabOrder
+    iconText = iconText or ">"
+
+    local page = Instance.new("ScrollingFrame")
+    page.Name = tabName .. "Page"
+    page.Size = UDim2.new(1, 0, 1, 0)
+    page.BackgroundTransparency = 1
+    page.BorderSizePixel = 0
+    page.ScrollBarThickness = 4
+    page.ScrollBarImageColor3 = THEME.NeonCyan
+    page.ScrollBarImageTransparency = 0.4
+    page.CanvasSize = UDim2.new(0, 0, 0, 0)
+    page.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    page.Visible = false
+    page.Parent = contentArea
+
+    local pageLayout = Instance.new("UIListLayout")
+    pageLayout.Padding = UDim.new(0, 14)
+    pageLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    pageLayout.Parent = page
+
+    local pagePadding = Instance.new("UIPadding")
+    pagePadding.PaddingTop = UDim.new(0, 18)
+    pagePadding.PaddingLeft = UDim.new(0, 20)
+    pagePadding.PaddingRight = UDim.new(0, 20)
+    pagePadding.PaddingBottom = UDim.new(0, 20)
+    pagePadding.Parent = page
+
+    local tabBtn = Instance.new("TextButton")
+    tabBtn.Name = tabName .. "Btn"
+    tabBtn.Size = UDim2.new(1, 0, 0, 38)
+    tabBtn.BackgroundColor3 = THEME.CardGlass
+    tabBtn.BackgroundTransparency = 1
+    tabBtn.Text = ""
+    tabBtn.AutoButtonColor = false
+    tabBtn.LayoutOrder = myOrder
+    tabBtn.ClipsDescendants = true
+    tabBtn.Parent = tabScroll
+
+    local btnCorner = Instance.new("UICorner")
+    btnCorner.CornerRadius = UDim.new(0, 8)
+    btnCorner.Parent = tabBtn
+
+    local btnIcon = Instance.new("TextLabel")
+    btnIcon.Size = UDim2.new(0, 24, 1, 0)
+    btnIcon.Position = UDim2.new(0, 12, 0, 0)
+    btnIcon.BackgroundTransparency = 1
+    btnIcon.Font = Enum.Font.GothamBold
+    btnIcon.TextSize = 14
+    btnIcon.TextColor3 = THEME.TextSecondary
+    btnIcon.Text = iconText
+    btnIcon.Parent = tabBtn
+
+    local btnTitle = Instance.new("TextLabel")
+    btnTitle.Size = UDim2.new(1, -44, 1, 0)
+    btnTitle.Position = UDim2.new(0, 40, 0, 0)
+    btnTitle.BackgroundTransparency = 1
+    btnTitle.Font = Enum.Font.GothamMedium
+    btnTitle.TextSize = 13
+    btnTitle.TextColor3 = THEME.TextSecondary
+    btnTitle.TextXAlignment = Enum.TextXAlignment.Left
+    btnTitle.Text = tabName
+    btnTitle.Parent = tabBtn
+
+    local function select()
+        PlaySound(SOUNDS.Tab, 0.25)
+        for _, tab in pairs(tabs) do
+            tab.Page.Visible = false
+            TweenService:Create(tab.Button, TweenInfo.new(0.2), {BackgroundTransparency = 1}):Play()
+            TweenService:Create(tab.Icon, TweenInfo.new(0.2), {TextColor3 = THEME.TextSecondary}):Play()
+            TweenService:Create(tab.Title, TweenInfo.new(0.2), {TextColor3 = THEME.TextSecondary}):Play()
+        end
+        page.Visible = true
+        TweenService:Create(tabBtn, TweenInfo.new(0.25), {BackgroundTransparency = 0.5, BackgroundColor3 = THEME.CardGlass}):Play()
+        TweenService:Create(btnIcon, TweenInfo.new(0.25), {TextColor3 = THEME.NeonCyan}):Play()
+        TweenService:Create(btnTitle, TweenInfo.new(0.25), {TextColor3 = THEME.TextPrimary}):Play()
+        local targetY = tabBtn.Position.Y.Offset + 7 + ((myOrder - 1) * 44)
+        TweenService:Create(indicator, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+            Position = UDim2.new(0, 4, 0, targetY)
+        }):Play()
+    end
+
+    tabBtn.MouseButton1Click:Connect(select)
+    tabBtn.MouseEnter:Connect(function()
+        if not page.Visible then
+            TweenService:Create(tabBtn, TweenInfo.new(0.15), {BackgroundTransparency = 0.8}):Play()
+        end
+    end)
+    tabBtn.MouseLeave:Connect(function()
+        if not page.Visible then
+            TweenService:Create(tabBtn, TweenInfo.new(0.15), {BackgroundTransparency = 1}):Play()
+        end
+    end)
+
+    local tabObj = { Page = page, Button = tabBtn, Icon = btnIcon, Title = btnTitle, Select = select }
+    tabs[tabName] = tabObj
+    return tabObj
+end
+
+local ZenithUI = {}
+
+function ZenithUI.CreateSection(tabObj, sectionTitle)
+    local card = Instance.new("Frame")
+    card.Name = sectionTitle .. "Section"
+    card.Size = UDim2.new(1, 0, 0, 0)
+    card.AutomaticSize = Enum.AutomaticSize.Y
+    card.BackgroundColor3 = THEME.CardGlass
+    card.BackgroundTransparency = THEME.CardTrans
+    card.BorderSizePixel = 0
+    card.Parent = tabObj.Page
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 10)
+    corner.Parent = card
+
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = THEME.CardStroke
+    stroke.Transparency = 0.5
+    stroke.Thickness = 1.2
+    stroke.Parent = card
+
+    local cardPadding = Instance.new("UIPadding")
+    cardPadding.PaddingTop = UDim.new(0, 12)
+    cardPadding.PaddingBottom = UDim.new(0, 14)
+    cardPadding.PaddingLeft = UDim.new(0, 14)
+    cardPadding.PaddingRight = UDim.new(0, 14)
+    cardPadding.Parent = card
+
+    local cardLayout = Instance.new("UIListLayout")
+    cardLayout.Padding = UDim.new(0, 10)
+    cardLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    cardLayout.Parent = card
+
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Size = UDim2.new(1, 0, 0, 20)
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Font = Enum.Font.GothamBold
+    titleLabel.TextSize = 12
+    titleLabel.TextColor3 = THEME.NeonCyan
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    titleLabel.Text = string.upper(sectionTitle)
+    titleLabel.LayoutOrder = 0
+    titleLabel.Parent = card
+
+    return card
+end
+
+function ZenithUI.CreateButton(container, text, subText, callback)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, 0, 0, subText and 48 or 40)
+    btn.BackgroundColor3 = Color3.fromRGB(24, 28, 42)
+    btn.BackgroundTransparency = 0.35
+    btn.Text = ""
+    btn.AutoButtonColor = false
+    btn.ClipsDescendants = true
+    btn.Parent = container
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = btn
+
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = THEME.CardStroke
+    stroke.Transparency = 0.5
+    stroke.Thickness = 1
+    stroke.Parent = btn
+
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Size = UDim2.new(1, -30, 0, subText and 20 or 40)
+    titleLabel.Position = UDim2.new(0, 14, 0, subText and 6 or 0)
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Font = Enum.Font.GothamSemibold
+    titleLabel.TextSize = 13
+    titleLabel.TextColor3 = THEME.TextPrimary
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    titleLabel.Text = text
+    titleLabel.Parent = btn
+
+    if subText then
+        local subLabel = Instance.new("TextLabel")
+        subLabel.Size = UDim2.new(1, -30, 0, 16)
+        subLabel.Position = UDim2.new(0, 14, 0, 25)
+        subLabel.BackgroundTransparency = 1
+        subLabel.Font = Enum.Font.Gotham
+        subLabel.TextSize = 11
+        subLabel.TextColor3 = THEME.TextMuted
+        subLabel.TextXAlignment = Enum.TextXAlignment.Left
+        subLabel.Text = subText
+        subLabel.Parent = btn
+    end
+
+    local arrowIcon = Instance.new("TextLabel")
+    arrowIcon.Size = UDim2.new(0, 20, 1, 0)
+    arrowIcon.Position = UDim2.new(1, -28, 0, 0)
+    arrowIcon.BackgroundTransparency = 1
+    arrowIcon.Font = Enum.Font.GothamBold
+    arrowIcon.TextSize = 13
+    arrowIcon.TextColor3 = THEME.TextSecondary
+    arrowIcon.Text = ">"
+    arrowIcon.Parent = btn
+
+    btn.MouseEnter:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(0.18), {BackgroundColor3 = Color3.fromRGB(32, 38, 56), BackgroundTransparency = 0.15}):Play()
+        TweenService:Create(stroke, TweenInfo.new(0.18), {Color = THEME.NeonCyan, Transparency = 0.4}):Play()
+        TweenService:Create(arrowIcon, TweenInfo.new(0.18), {TextColor3 = THEME.NeonCyan}):Play()
+    end)
+
+    btn.MouseLeave:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(0.18), {BackgroundColor3 = Color3.fromRGB(24, 28, 42), BackgroundTransparency = 0.35}):Play()
+        TweenService:Create(stroke, TweenInfo.new(0.18), {Color = THEME.CardStroke, Transparency = 0.5}):Play()
+        TweenService:Create(arrowIcon, TweenInfo.new(0.18), {TextColor3 = THEME.TextSecondary}):Play()
+    end)
+
+    btn.MouseButton1Click:Connect(function()
+        PlaySound(SOUNDS.Click, 0.4)
+        CreateRipple(btn)
+        TweenService:Create(btn, TweenInfo.new(0.08), {Size = UDim2.new(1, -4, 0, (subText and 48 or 40) - 2)}):Play()
+        task.wait(0.08)
+        TweenService:Create(btn, TweenInfo.new(0.08), {Size = UDim2.new(1, 0, 0, subText and 48 or 40)}):Play()
+        if callback then callback() end
+    end)
+end
+
+function ZenithUI.CreateToggle(container, labelText, subText, defaultState, callback)
+    local state = defaultState or false
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, 0, 0, subText and 48 or 42)
+    frame.BackgroundColor3 = Color3.fromRGB(22, 26, 38)
+    frame.BackgroundTransparency = 0.4
+    frame.BorderSizePixel = 0
+    frame.Parent = container
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = frame
+
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = THEME.CardStroke
+    stroke.Transparency = 0.6
+    stroke.Thickness = 1
+    stroke.Parent = frame
+
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Size = UDim2.new(1, -70, 0, subText and 20 or 42)
+    titleLabel.Position = UDim2.new(0, 14, 0, subText and 6 or 0)
+    titleLabel.Text = labelText
+    titleLabel.TextColor3 = THEME.TextPrimary
+    titleLabel.TextSize = 13
+    titleLabel.Font = Enum.Font.GothamMedium
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Parent = frame
+
+    if subText then
+        local subLabel = Instance.new("TextLabel")
+        subLabel.Size = UDim2.new(1, -70, 0, 16)
+        subLabel.Position = UDim2.new(0, 14, 0, 25)
+        subLabel.Text = subText
+        subLabel.TextColor3 = THEME.TextMuted
+        subLabel.TextSize = 11
+        subLabel.Font = Enum.Font.Gotham
+        subLabel.TextXAlignment = Enum.TextXAlignment.Left
+        subLabel.BackgroundTransparency = 1
+        subLabel.Parent = frame
+    end
+
+    local pill = Instance.new("Frame")
+    pill.Size = UDim2.new(0, 46, 0, 24)
+    pill.Position = UDim2.new(1, -58, 0.5, -12)
+    pill.BackgroundColor3 = state and THEME.NeonCyan or Color3.fromRGB(40, 44, 58)
+    pill.BackgroundTransparency = state and 0.1 or 0.5
+    pill.BorderSizePixel = 0
+    pill.Parent = frame
+
+    local pillCorner = Instance.new("UICorner")
+    pillCorner.CornerRadius = UDim.new(1, 0)
+    pillCorner.Parent = pill
+
+    local knob = Instance.new("Frame")
+    knob.Size = UDim2.new(0, 18, 0, 18)
+    knob.Position = state and UDim2.new(1, -21, 0.5, -9) or UDim2.new(0, 3, 0.5, -9)
+    knob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    knob.BorderSizePixel = 0
+    knob.Parent = pill
+
+    local knobCorner = Instance.new("UICorner")
+    knobCorner.CornerRadius = UDim.new(1, 0)
+    knobCorner.Parent = knob
+
+    local hit = Instance.new("TextButton")
+    hit.Size = UDim2.new(1, 0, 1, 0)
+    hit.BackgroundTransparency = 1
+    hit.Text = ""
+    hit.Parent = frame
+
+    hit.MouseButton1Click:Connect(function()
+        state = not state
+        PlaySound(SOUNDS.Toggle, 0.35)
+        local targetPos = state and UDim2.new(1, -21, 0.5, -9) or UDim2.new(0, 3, 0.5, -9)
+        local targetColor = state and THEME.NeonCyan or Color3.fromRGB(40, 44, 58)
+        local targetTrans = state and 0.1 or 0.5
+        TweenService:Create(knob, TweenInfo.new(0.22, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Position = targetPos}):Play()
+        TweenService:Create(pill, TweenInfo.new(0.22), {BackgroundColor3 = targetColor, BackgroundTransparency = targetTrans}):Play()
+        if callback then callback(state) end
+    end)
+end
+
+function ZenithUI.CreateSlider(container, labelText, min, max, defaultVal, callback)
+    local value = defaultVal or min
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, 0, 0, 58)
+    frame.BackgroundColor3 = Color3.fromRGB(22, 26, 38)
+    frame.BackgroundTransparency = 0.4
+    frame.BorderSizePixel = 0
+    frame.Parent = container
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = frame
+
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = THEME.CardStroke
+    stroke.Transparency = 0.6
+    stroke.Thickness = 1
+    stroke.Parent = frame
+
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, -80, 0, 24)
+    label.Position = UDim2.new(0, 14, 0, 8)
+    label.Text = labelText
+    label.TextColor3 = THEME.TextPrimary
+    label.TextSize = 13
+    label.Font = Enum.Font.GothamMedium
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.BackgroundTransparency = 1
+    label.Parent = frame
+
+    local valBadge = Instance.new("Frame")
+    valBadge.Size = UDim2.new(0, 48, 0, 20)
+    valBadge.Position = UDim2.new(1, -62, 0, 8)
+    valBadge.BackgroundColor3 = Color3.fromRGB(30, 35, 52)
+    valBadge.BorderSizePixel = 0
+    valBadge.Parent = frame
+
+    local vbCorner = Instance.new("UICorner")
+    vbCorner.CornerRadius = UDim.new(0, 6)
+    vbCorner.Parent = valBadge
+
+    local valLabel = Instance.new("TextLabel")
+    valLabel.Size = UDim2.new(1, 0, 1, 0)
+    valLabel.Text = tostring(value)
+    valLabel.TextColor3 = THEME.NeonCyan
+    valLabel.TextSize = 12
+    valLabel.Font = Enum.Font.GothamBold
+    valLabel.BackgroundTransparency = 1
+    valLabel.Parent = valBadge
+
+    local track = Instance.new("Frame")
+    track.Size = UDim2.new(1, -28, 0, 7)
+    track.Position = UDim2.new(0, 14, 0, 38)
+    track.BackgroundColor3 = Color3.fromRGB(36, 40, 56)
+    track.BorderSizePixel = 0
+    track.Parent = frame
+
+    local trackCorner = Instance.new("UICorner")
+    trackCorner.CornerRadius = UDim.new(1, 0)
+    trackCorner.Parent = track
+
+    local fill = Instance.new("Frame")
+    local ratio = math.clamp((value - min) / (max - min), 0, 1)
+    fill.Size = UDim2.new(ratio, 0, 1, 0)
+    fill.BackgroundColor3 = THEME.NeonCyan
+    fill.BorderSizePixel = 0
+    fill.Parent = track
+
+    local fillCorner = Instance.new("UICorner")
+    fillCorner.CornerRadius = UDim.new(1, 0)
+    fillCorner.Parent = fill
+
+    local thumb = Instance.new("Frame")
+    thumb.Size = UDim2.new(0, 15, 0, 15)
+    thumb.AnchorPoint = Vector2.new(0.5, 0.5)
+    thumb.Position = UDim2.new(ratio, 0, 0.5, 0)
+    thumb.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    thumb.BorderSizePixel = 0
+    thumb.Parent = track
+
+    local thumbCorner = Instance.new("UICorner")
+    thumbCorner.CornerRadius = UDim.new(1, 0)
+    thumbCorner.Parent = thumb
+
+    local sliding = false
+    local function setValueFromInput(input)
+        local xPos = math.clamp(input.Position.X - track.AbsolutePosition.X, 0, track.AbsoluteSize.X)
+        local progress = xPos / track.AbsoluteSize.X
+        value = math.floor(min + (progress * (max - min)))
+        valLabel.Text = tostring(value)
+        TweenService:Create(fill, TweenInfo.new(0.04), {Size = UDim2.new(progress, 0, 1, 0)}):Play()
+        TweenService:Create(thumb, TweenInfo.new(0.04), {Position = UDim2.new(progress, 0, 0.5, 0)}):Play()
+        if callback then callback(value) end
+    end
+
+    track.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            sliding = true
+            setValueFromInput(input)
+        end
+    end)
+
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            sliding = false
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if sliding and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            setValueFromInput(input)
+        end
+    end)
+end
+
+function ZenithUI.CreateDropdown(container, labelText, options, defaultOption, callback)
+    local selected = defaultOption or options[1]
+    local isOpen = false
+
+    local dropdownBox = Instance.new("Frame")
+    dropdownBox.Size = UDim2.new(1, 0, 0, 44)
+    dropdownBox.BackgroundColor3 = Color3.fromRGB(22, 26, 38)
+    dropdownBox.BackgroundTransparency = 0.4
+    dropdownBox.BorderSizePixel = 0
+    dropdownBox.ClipsDescendants = true
+    dropdownBox.Parent = container
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = dropdownBox
+
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = THEME.CardStroke
+    stroke.Transparency = 0.6
+    stroke.Thickness = 1
+    stroke.Parent = dropdownBox
+
+    local header = Instance.new("Frame")
+    header.Name = "Header"
+    header.Size = UDim2.new(1, 0, 0, 44)
+    header.BackgroundTransparency = 1
+    header.Parent = dropdownBox
+
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(0.45, 0, 1, 0)
+    label.Position = UDim2.new(0, 14, 0, 0)
+    label.Text = labelText
+    label.TextColor3 = THEME.TextPrimary
+    label.TextSize = 13
+    label.Font = Enum.Font.GothamMedium
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.BackgroundTransparency = 1
+    label.Parent = header
+
+    local currentVal = Instance.new("TextLabel")
+    currentVal.Size = UDim2.new(0.55, -46, 1, 0)
+    currentVal.Position = UDim2.new(0.45, 0, 0, 0)
+    currentVal.Text = selected
+    currentVal.TextColor3 = THEME.NeonCyan
+    currentVal.TextSize = 12
+    currentVal.Font = Enum.Font.GothamSemibold
+    currentVal.TextXAlignment = Enum.TextXAlignment.Right
+    currentVal.BackgroundTransparency = 1
+    currentVal.Parent = header
+
+    local arrowHolder = Instance.new("Frame")
+    arrowHolder.Name = "ArrowHolder"
+    arrowHolder.Size = UDim2.new(0, 16, 0, 16)
+    arrowHolder.Position = UDim2.new(1, -22, 0.5, 0)
+    arrowHolder.AnchorPoint = Vector2.new(0.5, 0.5)
+    arrowHolder.BackgroundTransparency = 1
+    arrowHolder.Parent = header
+
+    local leftLeg = Instance.new("Frame")
+    leftLeg.Size = UDim2.new(0, 6, 0, 2)
+    leftLeg.Position = UDim2.new(0.5, -2, 0.5, 0)
+    leftLeg.AnchorPoint = Vector2.new(0.5, 0.5)
+    leftLeg.Rotation = 45
+    leftLeg.BackgroundColor3 = THEME.NeonCyan
+    leftLeg.BorderSizePixel = 0
+    leftLeg.Parent = arrowHolder
+
+    local leftCorner = Instance.new("UICorner")
+    leftCorner.CornerRadius = UDim.new(1, 0)
+    leftCorner.Parent = leftLeg
+
+    local rightLeg = Instance.new("Frame")
+    rightLeg.Size = UDim2.new(0, 6, 0, 2)
+    rightLeg.Position = UDim2.new(0.5, 2, 0.5, 0)
+    rightLeg.AnchorPoint = Vector2.new(0.5, 0.5)
+    rightLeg.Rotation = -45
+    rightLeg.BackgroundColor3 = THEME.NeonCyan
+    rightLeg.BorderSizePixel = 0
+    rightLeg.Parent = arrowHolder
+
+    local rightCorner = Instance.new("UICorner")
+    rightCorner.CornerRadius = UDim.new(1, 0)
+    rightCorner.Parent = rightLeg
+
+    local trigger = Instance.new("TextButton")
+    trigger.Size = UDim2.new(1, 0, 1, 0)
+    trigger.BackgroundTransparency = 1
+    trigger.Text = ""
+    trigger.ZIndex = 2
+    trigger.Parent = header
+
+    trigger.MouseEnter:Connect(function()
+        TweenService:Create(stroke, TweenInfo.new(0.15), {Color = THEME.NeonCyan, Transparency = 0.4}):Play()
+        TweenService:Create(leftLeg, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(255, 255, 255)}):Play()
+        TweenService:Create(rightLeg, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(255, 255, 255)}):Play()
+    end)
+
+    trigger.MouseLeave:Connect(function()
+        TweenService:Create(stroke, TweenInfo.new(0.15), {Color = THEME.CardStroke, Transparency = 0.6}):Play()
+        TweenService:Create(leftLeg, TweenInfo.new(0.15), {BackgroundColor3 = THEME.NeonCyan}):Play()
+        TweenService:Create(rightLeg, TweenInfo.new(0.15), {BackgroundColor3 = THEME.NeonCyan}):Play()
+    end)
+
+    local optScroll = Instance.new("ScrollingFrame")
+    optScroll.Size = UDim2.new(1, -24, 0, math.min(#options * 32, 130))
+    optScroll.Position = UDim2.new(0, 12, 0, 48)
+    optScroll.BackgroundTransparency = 1
+    optScroll.BorderSizePixel = 0
+    optScroll.ScrollBarThickness = 3
+    optScroll.ScrollBarImageColor3 = THEME.NeonCyan
+    optScroll.ScrollBarImageTransparency = 0.4
+    optScroll.CanvasSize = UDim2.new(0, 0, 0, #options * 32)
+    optScroll.Parent = dropdownBox
+
+    local optLayout = Instance.new("UIListLayout")
+    optLayout.Padding = UDim.new(0, 4)
+    optLayout.Parent = optScroll
+
+    for _, opt in ipairs(options) do
+        local optBtn = Instance.new("TextButton")
+        optBtn.Size = UDim2.new(1, 0, 0, 28)
+        optBtn.BackgroundColor3 = Color3.fromRGB(30, 35, 50)
+        optBtn.BackgroundTransparency = 0.4
+        optBtn.Text = " " .. opt
+        optBtn.TextColor3 = (opt == selected) and THEME.NeonCyan or THEME.TextSecondary
+        optBtn.TextSize = 12
+        optBtn.Font = Enum.Font.Gotham
+        optBtn.TextXAlignment = Enum.TextXAlignment.Left
+        optBtn.AutoButtonColor = false
+        optBtn.Parent = optScroll
+
+        local optCorner = Instance.new("UICorner")
+        optCorner.CornerRadius = UDim.new(0, 6)
+        optCorner.Parent = optBtn
+
+        optBtn.MouseEnter:Connect(function()
+            TweenService:Create(optBtn, TweenInfo.new(0.12), {TextColor3 = THEME.NeonCyan, BackgroundTransparency = 0.15}):Play()
+        end)
+        optBtn.MouseLeave:Connect(function()
+            local col = (opt == selected) and THEME.NeonCyan or THEME.TextSecondary
+            TweenService:Create(optBtn, TweenInfo.new(0.12), {TextColor3 = col, BackgroundTransparency = 0.4}):Play()
+        end)
+
+        optBtn.MouseButton1Click:Connect(function()
+            PlaySound(SOUNDS.Click, 0.3)
+            selected = opt
+            currentVal.Text = selected
+            isOpen = false
+            TweenService:Create(dropdownBox, TweenInfo.new(0.25, Enum.EasingStyle.Quart), {Size = UDim2.new(1, 0, 0, 44)}):Play()
+            TweenService:Create(arrowHolder, TweenInfo.new(0.2, Enum.EasingStyle.Quart), {Rotation = 0}):Play()
+            if callback then callback(selected) end
+        end)
+    end
+
+    trigger.MouseButton1Click:Connect(function()
+        isOpen = not isOpen
+        PlaySound(SOUNDS.Click, 0.25)
+        local targetH = isOpen and (54 + math.min(#options * 32, 130)) or 44
+        TweenService:Create(dropdownBox, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+            Size = UDim2.new(1, 0, 0, targetH)
+        }):Play()
+        TweenService:Create(arrowHolder, TweenInfo.new(0.25, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+            Rotation = isOpen and 180 or 0
+        }):Play()
+    end)
+end
+
+function ZenithUI.CreateTextInput(container, labelText, placeholder, callback)
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, 0, 0, 44)
+    frame.BackgroundColor3 = Color3.fromRGB(22, 26, 38)
+    frame.BackgroundTransparency = 0.4
+    frame.BorderSizePixel = 0
+    frame.Parent = container
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = frame
+
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = THEME.CardStroke
+    stroke.Transparency = 0.6
+    stroke.Thickness = 1
+    stroke.Parent = frame
+
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(0.4, 0, 1, 0)
+    label.Position = UDim2.new(0, 14, 0, 0)
+    label.Text = labelText
+    label.TextColor3 = THEME.TextPrimary
+    label.TextSize = 13
+    label.Font = Enum.Font.GothamMedium
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.BackgroundTransparency = 1
+    label.Parent = frame
+
+    local box = Instance.new("TextBox")
+    box.Size = UDim2.new(0.6, -24, 0, 28)
+    box.Position = UDim2.new(0.4, 10, 0.5, -14)
+    box.BackgroundColor3 = Color3.fromRGB(15, 18, 27)
+    box.BackgroundTransparency = 0.3
+    box.TextColor3 = THEME.TextPrimary
+    box.PlaceholderColor3 = THEME.TextMuted
+    box.PlaceholderText = placeholder or "Type here..."
+    box.Text = ""
+    box.TextSize = 12
+    box.Font = Enum.Font.Gotham
+    box.ClearTextOnFocus = false
+    box.Parent = frame
+
+    local boxCorner = Instance.new("UICorner")
+    boxCorner.CornerRadius = UDim.new(0, 6)
+    boxCorner.Parent = box
+
+    box.Focused:Connect(function()
+        TweenService:Create(stroke, TweenInfo.new(0.15), {Color = THEME.NeonCyan, Transparency = 0.3}):Play()
+    end)
+    box.FocusLost:Connect(function(enterPressed)
+        TweenService:Create(stroke, TweenInfo.new(0.15), {Color = THEME.CardStroke, Transparency = 0.6}):Play()
+        if callback then callback(box.Text, enterPressed) end
+    end)
+end
+
+function ZenithUI.CreateKeybind(container, labelText, defaultKey, callback)
+    local currentKey = defaultKey or Enum.KeyCode.RightControl
+    local binding = false
+
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, 0, 0, 44)
+    frame.BackgroundColor3 = Color3.fromRGB(22, 26, 38)
+    frame.BackgroundTransparency = 0.4
+    frame.BorderSizePixel = 0
+    frame.Parent = container
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = frame
+
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = THEME.CardStroke
+    stroke.Transparency = 0.6
+    stroke.Thickness = 1
+    stroke.Parent = frame
+
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, -120, 1, 0)
+    label.Position = UDim2.new(0, 14, 0, 0)
+    label.Text = labelText
+    label.TextColor3 = THEME.TextPrimary
+    label.TextSize = 13
+    label.Font = Enum.Font.GothamMedium
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.BackgroundTransparency = 1
+    label.Parent = frame
+
+    local keyBtn = Instance.new("TextButton")
+    keyBtn.Size = UDim2.new(0, 96, 0, 26)
+    keyBtn.Position = UDim2.new(1, -108, 0.5, -13)
+    keyBtn.BackgroundColor3 = Color3.fromRGB(30, 35, 52)
+    keyBtn.BackgroundTransparency = 0.2
+    keyBtn.Text = currentKey.Name
+    keyBtn.TextColor3 = THEME.NeonCyan
+    keyBtn.TextSize = 11
+    keyBtn.Font = Enum.Font.GothamBold
+    keyBtn.AutoButtonColor = false
+    keyBtn.Parent = frame
+
+    local kbCorner = Instance.new("UICorner")
+    kbCorner.CornerRadius = UDim.new(0, 6)
+    kbCorner.Parent = keyBtn
+
+    local kbStroke = Instance.new("UIStroke")
+    kbStroke.Color = THEME.NeonCyan
+    kbStroke.Transparency = 0.7
+    kbStroke.Thickness = 1
+    kbStroke.Parent = keyBtn
+
+    keyBtn.MouseButton1Click:Connect(function()
+        binding = true
+        keyBtn.Text = "..."
+        kbStroke.Color = THEME.Warning
+    end)
+
+    UserInputService.InputBegan:Connect(function(input)
+        if binding and input.UserInputType == Enum.UserInputType.Keyboard then
+            currentKey = input.KeyCode
+            keyBtn.Text = currentKey.Name
+            kbStroke.Color = THEME.NeonCyan
+            binding = false
+            PlaySound(SOUNDS.Click, 0.3)
+            if callback then callback(currentKey) end
+        end
+    end)
+end
+
+-- (تم الحفاظ على مسارات المراحل كما هي دون تغيير)
+local STAGE_ROUTES = {
+    [1] = { Vector3.new(-415.6, 360.8, -759.9), Vector3.new(-414.8, 360.8, -759.7), Vector3.new(-409.8, 360.8, -759.5), Vector3.new(-404.8, 360.8, -759.7), Vector3.new(-399.4, 360.8, -759.9), Vector3.new(-394.3, 360.8, -760.1), Vector3.new(-389, 360.8, -760.3), Vector3.new(-384, 360.8, -760.4), Vector3.new(-378.9, 360.8, -760.6), Vector3.new(-373.6, 360.8, -760.8), Vector3.new(-368.1, 360.8, -761), Vector3.new(-363, 360.8, -761.2), Vector3.new(-357.8, 360.8, -761.4), Vector3.new(-352.4, 360.9, -761.5), Vector3.new(-347.3, 360.9, -761.7), Vector3.new(-342.1, 361, -761.9), Vector3.new(-337, 361.1, -762.1), Vector3.new(-331.7, 361.1, -762.3), Vector3.new(-326.6, 361.2, -762.4), Vector3.new(-321.6, 361.3, -762.6), Vector3.new(-316.6, 361.3, -762.8), Vector3.new(-311.4, 361.4, -763), Vector3.new(-306.7, 361.4, -763.1), Vector3.new(-301.4, 361.4, -763.3), Vector3.new(-296.3, 361.4, -763.5), Vector3.new(-291.3, 361.4, -763.7), Vector3.new(-286.3, 361.4, -763.8), Vector3.new(-280.9, 361.4, -764), Vector3.new(-275.9, 361.4, -764.2), Vector3.new(-272.5, 361.4, -765.8), Vector3.new(-268.8, 361.4, -769.5), Vector3.new(-265, 361.4, -773.3), Vector3.new(-261.3, 361.4, -776.1), Vector3.new(-256.3, 361.4, -777.2), Vector3.new(-251.4, 361.4, -778.4), Vector3.new(-246.3, 361.4, -779.5), Vector3.new(-241.4, 361.4, -780.7), Vector3.new(-236.7, 361.4, -781.1), Vector3.new(-231.3, 361.4, -781.2), Vector3.new(-225.9, 361.4, -781.4), Vector3.new(-221.4, 361.4, -781.6), Vector3.new(-216.1, 361.4, -781.8), Vector3.new(-210.7, 361.4, -782), Vector3.new(-205.2, 361.4, -782.1), Vector3.new(-199.8, 361.4, -782.3), Vector3.new(-195.2, 361.4, -781), Vector3.new(-190.2, 361.4, -778.8), Vector3.new(-185.6, 361.4, -776.8), Vector3.new(-180.6, 361.4, -774.5), Vector3.new(-175.9, 361.4, -772.5), Vector3.new(-171.1, 361.4, -770.3), Vector3.new(-166.2, 361.4, -768.2), Vector3.new(-161.9, 361.4, -765.8), Vector3.new(-157.1, 361.4, -763.2), Vector3.new(-152.4, 361.4, -760.7), Vector3.new(-148, 361.4, -758.3), Vector3.new(-143.2, 361.4, -755.7), Vector3.new(-138.8, 361.4, -753.3), Vector3.new(-135.6, 361, -749.6), Vector3.new(-133.2, 360.3, -744.8), Vector3.new(-130.7, 359.6, -740), Vector3.new(-128.7, 358.4, -736.1), Vector3.new(-128.4, 358.1, -735.6), Vector3.new(-128.7, 362.2, -735.9), Vector3.new(-128.7, 363, -735.9), },
+    [2] = { Vector3.new(-415.5, 360.8, -759.8), Vector3.new(-413.5, 360.8, -759.5), Vector3.new(-405.7, 360.8, -759.7), Vector3.new(-395.1, 360.8, -760.1), Vector3.new(-384.1, 360.8, -760.4), Vector3.new(-373.5, 360.8, -760.8), Vector3.new(-362.7, 360.8, -761.2), Vector3.new(-353.9, 360.9, -761.5), Vector3.new(-343.7, 361, -761.8), Vector3.new(-333.6, 361.1, -762.2), Vector3.new(-322.9, 361.2, -762.6), Vector3.new(-312.7, 361.4, -762.9), Vector3.new(-303.2, 361.4, -763.3), Vector3.new(-293.1, 361.4, -763.6), Vector3.new(-283, 361.4, -764), Vector3.new(-274.1, 361.4, -764.3), Vector3.new(-267.1, 361.4, -771.2), Vector3.new(-258.8, 361.4, -776.6), Vector3.new(-248.9, 361.4, -778.9), Vector3.new(-240.4, 361.4, -780.9), Vector3.new(-229.8, 361.4, -781.3), Vector3.new(-222, 361.4, -781.6), Vector3.new(-211.2, 361.4, -781.9), Vector3.new(-201.2, 361.4, -782.3), Vector3.new(-193.4, 361.4, -780.3), Vector3.new(-183.8, 361.4, -776), Vector3.new(-174.6, 361.4, -771.9), Vector3.new(-165.9, 361.4, -768), Vector3.new(-158.8, 361.4, -764.2), Vector3.new(-150, 361.4, -759.4), Vector3.new(-140.4, 361.4, -754.2), Vector3.new(-130.5, 361.4, -750.3), Vector3.new(-120.8, 361.4, -747.4), Vector3.new(-110.8, 361.4, -746.2), Vector3.new(-101.3, 361.4, -745.7), Vector3.new(-93.6, 361.4, -745.3), Vector3.new(-86.2, 366.3, -745.2), Vector3.new(-76.2, 367.8, -745.2), Vector3.new(-65.3, 361.4, -744.4), Vector3.new(-56.4, 365.3, -743.6), Vector3.new(-46.5, 369.3, -743.6), Vector3.new(-35.6, 362.4, -743.6), Vector3.new(-26.2, 361.4, -742), Vector3.new(-17, 368.7, -742), Vector3.new(-6.2, 373.3, -742), Vector3.new(3.8, 371.5, -742), Vector3.new(14.6, 364.2, -742), Vector3.new(25.4, 361.4, -742), Vector3.new(36.1, 361.4, -742.1), Vector3.new(45.4, 361.4, -743.2), Vector3.new(56.1, 361.4, -744.5), Vector3.new(65.2, 361.4, -745.5), Vector3.new(76, 361.4, -746.5), Vector3.new(86.8, 361.4, -747.4), Vector3.new(93.4, 360.4, -742.7), Vector3.new(101.6, 359.2, -736.9), Vector3.new(103, 362.8, -735.9), Vector3.new(102.9, 362.4, -736), },
+    [3] = { Vector3.new(-414.9, 360.8, -759.5), Vector3.new(-412.8, 360.8, -759.5), Vector3.new(-405.1, 360.8, -759.7), Vector3.new(-395.1, 360.8, -760.1), Vector3.new(-384.4, 360.8, -760.4), Vector3.new(-374.2, 360.8, -760.8), Vector3.new(-363.5, 360.8, -761.2), Vector3.new(-356.1, 360.8, -761.4), Vector3.new(-346, 361, -761.8), Vector3.new(-335.2, 361.1, -762.1), Vector3.new(-325.2, 361.2, -762.5), Vector3.new(-314.5, 361.4, -762.9), Vector3.new(-304.6, 361.4, -763.2), Vector3.new(-294.6, 361.4, -763.6), Vector3.new(-284.2, 361.4, -763.9), Vector3.new(-274.1, 361.4, -764.3), Vector3.new(-266.9, 361.4, -771.4), Vector3.new(-259, 361.4, -776.6), Vector3.new(-248.9, 361.4, -778.9), Vector3.new(-240.4, 361.4, -780.9), Vector3.new(-229.8, 361.4, -781.3), Vector3.new(-222.7, 361.4, -781.5), Vector3.new(-212.6, 361.4, -781.9), Vector3.new(-202.6, 361.4, -782.2), Vector3.new(-194.8, 361.4, -780.9), Vector3.new(-185.4, 361.4, -776.7), Vector3.new(-175.9, 361.4, -772.5), Vector3.new(-166.6, 361.4, -768.3), Vector3.new(-158, 361.4, -763.7), Vector3.new(-149.1, 361.4, -758.9), Vector3.new(-139.8, 361.4, -753.9), Vector3.new(-132.1, 361.4, -750.8), Vector3.new(-121.7, 361.4, -747.7), Vector3.new(-112.4, 361.4, -746.3), Vector3.new(-102.1, 361.4, -745.8), Vector3.new(-91.5, 361.4, -745.2), Vector3.new(-82.1, 369.1, -745.2), Vector3.new(-72, 363.7, -745.2), Vector3.new(-62, 361.4, -743.8), Vector3.new(-52.2, 368.2, -743.6), Vector3.new(-41.4, 367.3, -743.6), Vector3.new(-31.1, 361.4, -742.9), Vector3.new(-22.9, 364.2, -742), Vector3.new(-12.2, 371.5, -742), Vector3.new(-2, 373.2, -742), Vector3.new(8.8, 368.6, -742), Vector3.new(19.1, 361.4, -742), Vector3.new(29.7, 361.4, -742.1), Vector3.new(39.3, 361.4, -742.4), Vector3.new(50, 361.4, -743.7), Vector3.new(60.2, 361.4, -745), Vector3.new(70, 361.4, -745.9), Vector3.new(80.1, 361.4, -746.8), Vector3.new(87.9, 361.4, -747.5), Vector3.new(98, 361.4, -748.2), Vector3.new(106.5, 361.4, -749.2), Vector3.new(116.4, 361.4, -751), Vector3.new(125, 361.4, -753.9), Vector3.new(134.5, 361.4, -757.3), Vector3.new(140.6, 361.4, -758.5), Vector3.new(151.1, 361.4, -758.6), Vector3.new(161.5, 361.4, -758.6), Vector3.new(169.4, 361.4, -758.4), Vector3.new(180.1, 361.4, -758), Vector3.new(190, 361.4, -758.1), Vector3.new(200.7, 361.4, -758.7), Vector3.new(210.8, 361.4, -759.3), Vector3.new(214.7, 389.7, -759.4), Vector3.new(225.5, 391, -759.4), Vector3.new(235.8, 390.6, -759.4), Vector3.new(246.7, 387.2, -759.4), Vector3.new(257.6, 380.2, -759.4), Vector3.new(268.6, 370.2, -759.4), Vector3.new(279.7, 361.4, -759.9), Vector3.new(289.5, 361.4, -761.9), Vector3.new(294.2, 384.4, -762.7), Vector3.new(302.1, 390.4, -762.7), Vector3.new(312.1, 391.1, -762.7), Vector3.new(322.1, 390.4, -762.7), Vector3.new(332.2, 387.7, -762.7), Vector3.new(343, 382.5, -762.7), Vector3.new(353.9, 374.9, -762.7), Vector3.new(363.8, 366.6, -762.7), Vector3.new(374.2, 361.4, -762.4), Vector3.new(384.7, 361.4, -761.6), Vector3.new(394.9, 361.4, -760.8), Vector3.new(403.1, 361.4, -761.1), Vector3.new(413.1, 361.4, -761.5), Vector3.new(423.4, 361.4, -762), Vector3.new(434, 361.4, -762.5), Vector3.new(444.2, 361.4, -761.1), Vector3.new(454.4, 361.4, -759.2), Vector3.new(458.2, 360.7, -752.4), Vector3.new(461.4, 359.7, -742.9), Vector3.new(463.9, 361.8, -735.4), Vector3.new(463.8, 363, -735.4), Vector3.new(463.7, 362.8, -735.9), },
+    [4] = { Vector3.new(-415.2, 360.8, -760), Vector3.new(-410.4, 360.8, -759.5), Vector3.new(-400.1, 360.8, -759.9), Vector3.new(-389.6, 360.8, -760.3), Vector3.new(-379.4, 360.8, -760.6), Vector3.new(-369.4, 360.8, -761), Vector3.new(-361.2, 360.8, -761.2), Vector3.new(-351.2, 360.9, -761.6), Vector3.new(-340.9, 361, -761.9), Vector3.new(-330.3, 361.2, -762.3), Vector3.new(-319.7, 361.3, -762.7), Vector3.new(-310.5, 361.4, -763), Vector3.new(-300.2, 361.4, -763.4), Vector3.new(-289.5, 361.4, -763.7), Vector3.new(-279.5, 361.4, -764.1), Vector3.new(-272.3, 361.3, -766), Vector3.new(-265, 361.4, -773.3), Vector3.new(-256.2, 361.4, -777.2), Vector3.new(-245.6, 361.4, -779.7), Vector3.new(-235.4, 361.4, -781.1), Vector3.new(-224.6, 361.4, -781.5), Vector3.new(-217.7, 361.4, -781.7), Vector3.new(-206.9, 361.4, -782.1), Vector3.new(-198.2, 361.4, -782.4), Vector3.new(-189.5, 361.4, -778.5), Vector3.new(-179.7, 361.4, -774.2), Vector3.new(-169.9, 361.4, -769.8), Vector3.new(-163.2, 361.4, -766.6), Vector3.new(-153.9, 361.4, -761.5), Vector3.new(-144.9, 361.4, -756.6), Vector3.new(-136.9, 361.4, -752.2), Vector3.new(-128, 361.4, -749.6), Vector3.new(-118.4, 361.4, -746.7), Vector3.new(-109.1, 361.4, -746.1), Vector3.new(-101.4, 361.4, -745.7), Vector3.new(-92.2, 361.4, -745.2), Vector3.new(-84.7, 367.6, -745.2), Vector3.new(-74.6, 366.5, -745.2), Vector3.new(-63.6, 361.4, -744.1), Vector3.new(-54.6, 366.7, -743.6), Vector3.new(-43.8, 368.6, -743.6), Vector3.new(-33.5, 361.4, -743.4), Vector3.new(-25.1, 362.3, -742), Vector3.new(-15.2, 369.8, -742), Vector3.new(-4.3, 373.4, -742), Vector3.new(6.3, 370.2, -742), Vector3.new(17.2, 361.9, -742), Vector3.new(28, 361.4, -742.1), Vector3.new(37, 361.4, -742.1), Vector3.new(47.9, 361.4, -743.5), Vector3.new(58.5, 361.4, -744.8), Vector3.new(67.7, 361.4, -745.7), Vector3.new(77.7, 361.4, -746.6), Vector3.new(86.8, 361.4, -747.4), Vector3.new(95.9, 361.4, -748), Vector3.new(105, 361.4, -748.9), Vector3.new(115, 361.4, -750.8), Vector3.new(123.9, 361.4, -753.5), Vector3.new(134, 361.4, -757.1), Vector3.new(141.1, 361.4, -758.5), Vector3.new(152.2, 361.4, -758.6), Vector3.new(162.7, 361.4, -758.6), Vector3.new(171.7, 361.4, -758.3), Vector3.new(181.8, 361.4, -757.9), Vector3.new(192.1, 361.4, -758.2), Vector3.new(202.1, 361.4, -758.8), Vector3.new(212.8, 361.4, -759.4), Vector3.new(217.2, 390, -759.4), Vector3.new(228, 391.1, -759.4), Vector3.new(238, 390.2, -759.4), Vector3.new(248.3, 386.4, -759.4), Vector3.new(258.4, 379.6, -759.4), Vector3.new(269.5, 369.4, -759.4), Vector3.new(280.1, 361.4, -760), Vector3.new(290.6, 361.4, -762.2), Vector3.new(295.5, 389.7, -762.7), Vector3.new(305.3, 390.8, -762.7), Vector3.new(316.2, 391, -762.7), Vector3.new(326.7, 389.4, -762.7), Vector3.new(336.9, 385.7, -762.7), Vector3.new(347, 379.9, -762.7), Vector3.new(357.8, 371.7, -762.7), Vector3.new(368.7, 362.3, -762.7), Vector3.new(379.1, 361.4, -762), Vector3.new(389.7, 361.4, -761.2), Vector3.new(399.6, 361.4, -760.9), Vector3.new(410.2, 361.4, -761.4), Vector3.new(420.5, 361.4, -761.8), Vector3.new(430.6, 361.4, -762.3), Vector3.new(439.8, 361.4, -761.9), Vector3.new(449.9, 361.4, -760), Vector3.new(459.4, 361.4, -758.3), Vector3.new(469.8, 361.4, -756.5), Vector3.new(477.5, 361.4, -760.3), Vector3.new(485.9, 361.4, -765.7), Vector3.new(495, 361.4, -771.6), Vector3.new(503.6, 361.4, -777.1), Vector3.new(512, 361.4, -782), Vector3.new(521.6, 361.4, -784.6), Vector3.new(531.4, 361.4, -787.2), Vector3.new(541.5, 361.4, -789.9), Vector3.new(550.9, 361.4, -792.1), Vector3.new(561, 361.4, -793.9), Vector3.new(571.6, 361.4, -795.9), Vector3.new(580.3, 361.4, -797.5), Vector3.new(589.7, 361.4, -797), Vector3.new(600.6, 361.4, -796.4), Vector3.new(611, 361.4, -795.8), Vector3.new(619.4, 361.4, -795.1), Vector3.new(629.3, 361.4, -793.6), Vector3.new(639.8, 361.4, -792.1), Vector3.new(649.9, 361.4, -790.7), Vector3.new(660.6, 361.4, -789.1), Vector3.new(670.5, 361.4, -786.8), Vector3.new(680.7, 361.4, -784.4), Vector3.new(691.4, 361.4, -781.8), Vector3.new(700.8, 361.4, -779.7), Vector3.new(711.3, 361.4, -777.5), Vector3.new(721.2, 361.4, -775.4), Vector3.new(729.9, 361.4, -773.5), Vector3.new(739.8, 361.4, -771.4), Vector3.new(749.6, 361.4, -769.4), Vector3.new(759.4, 361.4, -767.3), Vector3.new(765.7, 361.1, -762.9), Vector3.new(770.9, 360.5, -754.1), Vector3.new(776.3, 359.8, -744.8), Vector3.new(781.8, 359, -735.6), Vector3.new(782.1, 362.9, -735.1), Vector3.new(782.1, 362.5, -735), Vector3.new(782.2, 363, -735), },
+    [5] = { Vector3.new(-414.3, 360.8, -759.6), Vector3.new(-412.6, 360.8, -759.5), Vector3.new(-402.5, 360.8, -759.8), Vector3.new(-391.7, 360.8, -760.2), Vector3.new(-381.5, 360.8, -760.5), Vector3.new(-371.2, 360.8, -760.9), Vector3.new(-361.2, 360.8, -761.2), Vector3.new(-352.8, 360.9, -761.5), Vector3.new(-342.4, 361, -761.9), Vector3.new(-331.8, 361.1, -762.3), Vector3.new(-321.2, 361.3, -762.6), Vector3.new(-311.4, 361.4, -763), Vector3.new(-303, 361.4, -763.3), Vector3.new(-292.9, 361.4, -763.6), Vector3.new(-282.2, 361.4, -764), Vector3.new(-272.9, 361.3, -765.5), Vector3.new(-265.5, 361.4, -772.8), Vector3.new(-256.2, 361.4, -777.2), Vector3.new(-246.4, 361.4, -779.5), Vector3.new(-238.7, 361.4, -781), Vector3.new(-228.4, 361.4, -781.3), Vector3.new(-217.8, 361.4, -781.7), Vector3.new(-207.4, 361.4, -782.1), Vector3.new(-197.3, 361.4, -782), Vector3.new(-188, 361.4, -777.9), Vector3.new(-178.3, 361.4, -773.5), Vector3.new(-169.1, 361.4, -769.4), Vector3.new(-159.9, 361.4, -764.8), Vector3.new(-150.4, 361.4, -759.6), Vector3.new(-141.1, 361.4, -754.6), Vector3.new(-134.1, 361.4, -751.4), Vector3.new(-123.7, 361.4, -748.3), Vector3.new(-115.6, 361.4, -746.5), Vector3.new(-105.3, 361.4, -745.9), Vector3.new(-96.6, 361.4, -745.5), Vector3.new(-89.6, 362.5, -745.2), Vector3.new(-78.8, 369.2, -745.2), Vector3.new(-67.5, 361.4, -744.7), Vector3.new(-59.8, 362.1, -743.6), Vector3.new(-49.1, 369.3, -743.6), Vector3.new(-39, 365.5, -743.6), Vector3.new(-28.7, 361.4, -742.5), Vector3.new(-20.2, 366.3, -742), Vector3.new(-9.4, 372.6, -742), Vector3.new(1.3, 372.5, -742), Vector3.new(12.1, 366.2, -742), Vector3.new(22.9, 361.4, -742), Vector3.new(33.6, 361.4, -742.1), Vector3.new(42.3, 361.4, -742.8), Vector3.new(52.6, 361.4, -744), Vector3.new(62.7, 361.4, -745.3), Vector3.new(71.3, 361.4, -746.1), Vector3.new(86.8, 361.4, -747.4), Vector3.new(95.1, 361.4, -748), Vector3.new(103.6, 361.4, -748.7), Vector3.new(114.1, 361.4, -750.6), Vector3.new(122.6, 361.4, -753), Vector3.new(132.5, 361.4, -756.6), Vector3.new(141.6, 361.4, -758.5), Vector3.new(151.6, 361.4, -758.6), Vector3.new(161.7, 361.4, -758.6), Vector3.new(172.3, 361.4, -758.3), Vector3.new(182.7, 361.4, -757.9), Vector3.new(191.6, 361.4, -758.2), Vector3.new(202.5, 361.4, -758.8), Vector3.new(212.9, 361.4, -759.4), Vector3.new(216.4, 389.9, -759.4), Vector3.new(226, 391, -759.4), Vector3.new(237.2, 390.3, -759.4), Vector3.new(247.7, 386.7, -759.4), Vector3.new(258.7, 379.4, -759.4), Vector3.new(268.8, 370, -759.4), Vector3.new(279.8, 361.4, -760), Vector3.new(291, 361.4, -762.2), Vector3.new(297.9, 390, -762.7), Vector3.new(308.7, 391, -762.7), Vector3.new(319.2, 390.7, -762.7), Vector3.new(330.9, 388.1, -762.7), Vector3.new(341.1, 383.5, -762.7), Vector3.new(351.1, 377, -762.7), Vector3.new(362.3, 368, -762.7), Vector3.new(373, 361.4, -762.5), Vector3.new(383.4, 361.4, -761.7), Vector3.new(393.9, 361.4, -760.9), Vector3.new(403.7, 361.4, -761.1), Vector3.new(413.7, 361.4, -761.5), Vector3.new(424.2, 361.4, -762), Vector3.new(434.2, 361.4, -762.5), Vector3.new(444, 361.4, -761.1), Vector3.new(453.9, 361.4, -759.2), Vector3.new(463.4, 361.4, -757.6), Vector3.new(471.2, 361.4, -756.2), Vector3.new(479.4, 361.4, -761.5), Vector3.new(488.2, 361.4, -767.2), Vector3.new(497.2, 361.4, -773), Vector3.new(506.4, 361.4, -779), Vector3.new(514.9, 361.4, -782.8), Vector3.new(524.8, 361.4, -785.4), Vector3.new(534.7, 361.4, -788.1), Vector3.new(544.9, 361.4, -790.8), Vector3.new(552.8, 361.4, -792.4), Vector3.new(563.4, 361.4, -794.4), Vector3.new(573.5, 361.4, -796.3), Vector3.new(581.7, 361.4, -797.5), Vector3.new(591.8, 361.4, -796.9), Vector3.new(603, 361.4, -796.3), Vector3.new(613.5, 361.4, -795.7), Vector3.new(623.1, 361.4, -794.5), Vector3.new(633.9, 361.4, -793), Vector3.new(644.9, 361.4, -791.4), Vector3.new(655.5, 361.4, -789.8), Vector3.new(663.6, 361.4, -788.4), Vector3.new(673.9, 361.4, -786), Vector3.new(684, 361.4, -783.6), Vector3.new(694.1, 361.4, -781.2), Vector3.new(702.4, 361.4, -779.4), Vector3.new(712.8, 361.4, -777.2), Vector3.new(723.8, 361.4, -774.8), Vector3.new(734.1, 361.4, -772.7), Vector3.new(744.2, 361.4, -770.5), Vector3.new(754.3, 361.4 },
+}
